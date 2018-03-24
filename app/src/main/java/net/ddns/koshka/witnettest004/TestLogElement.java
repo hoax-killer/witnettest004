@@ -12,31 +12,30 @@ import java.util.List;
 
 public class TestLogElement{
 
-
-    int strnum  = 0;
-    int timeout = 0;
     Handler h;
+    MyFIFO fifo;
 
-    public TestLogElement (int nstrings, int tout, Handler hh){
-        strnum = nstrings;
-        timeout = tout;
-        h = hh;
+    public TestLogElement ( Handler hh, MyFIFO f){
+
+        h       = hh;
+        fifo    = f;
     }
 
 
     public void runTest(){
         new Thread(new Runnable() {
-
             @Override
             public void run() {
-                Message msg;
                 String str;
-                for(int i=0; i<strnum; i++){
-                    str = "this is a row number " + i ;
+                Message msg;
+                byte[] data = new byte[5];
+                while(true){
+                    for(int i = 0; i<5; i++) data[i] = fifo.getDataByte();
+                    str = _print_hex(data);
                     msg = h.obtainMessage(0, 0,  0, str);
                     h.sendMessage(msg);
                     try {
-                        Thread.sleep(timeout);
+                        Thread.sleep(2000);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
@@ -47,5 +46,15 @@ public class TestLogElement{
 
     }
 
+    private String _print_hex (byte[] bb){
+        String str1 = "", str2 = "";
+        int i = 0;
+
+        for (i = 0; i < bb.length; i++) {
+            str1 = String.format("%02x ", bb[i]);
+            str2 = str2 + str1;
+        }
+        return str2 + "buf: " + fifo.loadPercentage()+"%";
+    }
 }
 

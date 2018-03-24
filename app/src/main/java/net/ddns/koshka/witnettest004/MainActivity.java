@@ -29,8 +29,6 @@ public class MainActivity extends AppCompatActivity {
         tv = (TextView) findViewById(R.id.sample_text);
         tv.setMovementMethod(new ScrollingMovementMethod());
 
-
-
         //tv.setText(stringFromJNI());
         //tv.setText("some shit");
         h = new Handler(){
@@ -41,9 +39,10 @@ public class MainActivity extends AppCompatActivity {
              };
         };
 
-        DiagRevealerControl DC = new DiagRevealerControl();
-        DC.readDiag();
-
+        MyFIFO fifo = new MyFIFO(1024);
+        DiagRevealerControl DC = new DiagRevealerControl(fifo);
+        DC.runRevealer();
+/*
         if(ExecuteAsRoot.canRunRootCommands()){
             tv.append("root is available" + "\n");
             String resp = ExecuteAsRoot.execute("ls -l /dev/diag", true);
@@ -57,9 +56,10 @@ public class MainActivity extends AppCompatActivity {
         }else{
             tv.append("root is NOT available" + "\n");
         }
-        //TestLogElement testlog = new TestLogElement(50, 1000, h);
+*/
+        TestLogElement testlog = new TestLogElement(h, fifo);
 
-        //testlog.runTest();
+        testlog.runTest();
     }
 
     /**
