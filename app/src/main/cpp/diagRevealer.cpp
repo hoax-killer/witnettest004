@@ -14,12 +14,15 @@
 
 #define  LOGD(...)  __android_log_print(ANDROID_LOG_DEBUG,LOG_TAG,__VA_ARGS__)
 
+volatile bool must_stop = false;
+
 extern "C"
 JNIEXPORT void JNICALL
 Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
         JNIEnv *env,
         jobject obj) {
     LOGD("DEBUGNET: diagRevealer successfully called\n");
+    must_stop = false;
 
     char len = 5;
     char* data = (char *) malloc( len );  //{8,53,116,218,42};
@@ -48,8 +51,20 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
         env->CallVoidMethod(obj, mid, bArray);
 
         usleep(1000000);
+        if(must_stop){
+            must_stop = false;
+            break;
+        }
     }
     //env->CallVoidMethod(obj, mid);
     //env->CallVoidMethod(obj, mid);
     return;
+}
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_net_ddns_koshka_witnettest004_DiagRevealerControl_stopDiag(
+        JNIEnv *env,
+        jobject obj) {
+    if(!must_stop) must_stop = true;
 }

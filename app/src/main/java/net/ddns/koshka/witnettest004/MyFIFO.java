@@ -19,6 +19,10 @@ public class MyFIFO {
         return (byte) (buffer.remainingCapacity() * 100 / qsize);
     }
 
+    public String getStat(){
+        return "stat: " + buffer.remainingCapacity() + " " + buffer.size();
+    }
+
     public Byte getDataByte(){
         try {
             return buffer.take();
@@ -30,6 +34,7 @@ public class MyFIFO {
         buffer.add(b);
     }
 
+    //TODO use AddAll() ?
     public void putDataBytes( byte[] bb){
         for(int i =0; i< bb.length; i++){
             buffer.add(bb[i]);

@@ -54,7 +54,7 @@ public class TestLogElement{
             str1 = String.format("%02x ", bb[i]);
             str2 = str2 + str1;
         }
-        return str2 + "buf: " + fifo.loadPercentage()+"%";
+        return str2 + "buf: " + fifo.loadPercentage()+"% "+ fifo.getStat();
     }
 }
 
