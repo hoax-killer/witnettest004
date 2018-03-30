@@ -12,12 +12,9 @@ import java.util.List;
 
 public class TestLogElement{
 
-    Handler h;
     MyFIFO fifo;
 
-    public TestLogElement ( Handler hh, MyFIFO f){
-
-        h       = hh;
+    public TestLogElement ( MyFIFO f){
         fifo    = f;
     }
 
@@ -32,8 +29,6 @@ public class TestLogElement{
                 while(true){
                     for(int i = 0; i<5; i++) data[i] = fifo.getDataByte();
                     str = _print_hex(data);
-                    msg = h.obtainMessage(0, 0,  0, str);
-                    h.sendMessage(msg);
                     try {
                         Thread.sleep(2000);
                     } catch (InterruptedException e) {

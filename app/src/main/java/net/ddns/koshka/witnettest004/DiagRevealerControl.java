@@ -11,65 +11,69 @@ import android.util.Log;
 public class DiagRevealerControl {
 
     MyFIFO fifo;
-    Handler h;
-    Boolean revialerIsRunning = false;
+    Boolean revealerIsRunning = false;
 
     static {
         System.loadLibrary("diagRevealer");
     }
 
-    DiagRevealerControl(MyFIFO f, Handler hh){
+    DiagRevealerControl(MyFIFO f){
         fifo = f;
-        h = hh;
     }
 
     public void runRevealer(){
-        if(revialerIsRunning) return;
-        setRevealerRunState(true);
+        if(revealerIsRunning) return;
+        _setRevealerRunState(true);
         new Thread(new Runnable() {
             @Override
             public void run() {
                 readDiag();
-                setRevealerRunState(false);
+                _setRevealerRunState(false);
             }
         }).start();
      }
 
     public Boolean getRevealerRunStatus(){
-       return  revialerIsRunning;
+       return  revealerIsRunning;
     }
 
-    private void setRevealerRunState( boolean boo ){
-        Message msg;
-        revialerIsRunning = boo;
-        msg = h.obtainMessage(1, 0,  0, boo?"Stop":"Run");
-        h.sendMessage(msg);
+    private void _setRevealerRunState( boolean boo ){
+        revealerIsRunning = boo;
+        GuiMessenger.getInstance().sendMessage(GuiMessenger.runButtonText, boo?"Stop":"Run" );
     }
-
+//TODO there is no point in this method. Native can write directly to FIFO
     public void logRevealer(byte[] bb){
         //Log.v("DEBUGNET", "logRevealer called with array size " + bb.length + "with data" + _print_hex(bb));
         fifo.putDataBytes(bb);
     }
 
     public void stopRevealer(){
-        if(revialerIsRunning) stopDiag();
+        if(revealerIsRunning) stopDiag();
     }
 
     public String[] getKnownMessageTypes(){
-        // TODO
-        // later this list should be taken from c++ code, from constants
-        String[] str = { "_1xEV_Connection_Attempt",  "_1xEV_Connection_Release", "_1xEV_Signaling_Control_Channel_Broadcast", "_1xEV_Connected_State_Search_Info",
-                "GSM_Surround_Cell_BA_List", "GSM_RR_Cell_Selection_Parameters", "GSM_RR_Cell_Information", "GSM_RR_Cell_Reselection_Meas",
-                "LTE_MAC_Configuration", "LTE_MAC_Rach_Trigger", "LTE_MAC_Rach_Attempt", "LTE_MAC_DL_Transport_Block", "LTE_MAC_UL_Transport_Block", "LTE_MAC_UL_Buffer_Status_Internal",
-                "LTE_PUCCH_Power_Control", "LTE_PUSCH_Power_Control", "LTE_PDCCH_PHICH_Indication_Report", "LTE_PDSCH_Stat_Indication"};
+        String[] str = (String[]) getTypeNames();
         return str;
     }
 
-    public boolean writeNewDiagCfg(String[] msgTypes){
-        return true;
+    public boolean writeNewDiagCfg(String[] msgTypes, String filePath){
+        GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "Trying to write new config file " + filePath + "/Diag.cfg");
+        GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "Enabled log messages count:  " + msgTypes.length);
+        for(String str:msgTypes) GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, str);
+
+        Object[] resp = writeDiagCfg( msgTypes,  filePath+"/Diag.cfg");
+        GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "response code " + (Integer)resp[0] +"; explanation: " + (String)resp[1] );
+
+        if((Integer)resp[0] == 0){
+            return true;
+        }else{
+            return false;
+        }
     }
 
 
-    private native void readDiag();
-    private native void stopDiag();
+    private native void     readDiag();
+    private native void     stopDiag();
+    private native Object[] getTypeNames();
+    private native Object[]  writeDiagCfg(String[] msgTypes, String fileName);
 }
