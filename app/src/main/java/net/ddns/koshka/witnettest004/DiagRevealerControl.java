@@ -4,21 +4,26 @@ import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
 
+import java.util.Arrays;
+import java.util.concurrent.ArrayBlockingQueue;
+
 /**
  * Created by siralex on 21-Mar-18.
  */
 
 public class DiagRevealerControl {
 
-    MyFIFO fifo;
+    ArrayBlockingQueue<DiagDataPacket> fifo;
     Boolean revealerIsRunning = false;
+    String diagConfigFilePath = "";
 
     static {
         System.loadLibrary("diagRevealer");
     }
 
-    DiagRevealerControl(MyFIFO f){
+    DiagRevealerControl(ArrayBlockingQueue<DiagDataPacket> f, String filepath){
         fifo = f;
+        diagConfigFilePath = filepath;
     }
 
     public void runRevealer(){
@@ -27,8 +32,13 @@ public class DiagRevealerControl {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                readDiag();
+                Object[] resp =readDiag(diagConfigFilePath);
                 _setRevealerRunState(false);
+                if((Integer)resp[0]!=0){
+                    GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "DIAG thread ended with error: " + (String)resp[1] );
+                }else{
+                    GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "DIAG thread ended gracefully: " + (String)resp[1] );
+                }
             }
         }).start();
      }
@@ -41,10 +51,16 @@ public class DiagRevealerControl {
         revealerIsRunning = boo;
         GuiMessenger.getInstance().sendMessage(GuiMessenger.runButtonText, boo?"Stop":"Run" );
     }
-//TODO there is no point in this method. Native can write directly to FIFO
-    public void logRevealer(byte[] bb){
-        //Log.v("DEBUGNET", "logRevealer called with array size " + bb.length + "with data" + _print_hex(bb));
-        fifo.putDataBytes(bb);
+
+    public void logRevealer(byte[] header_buf, byte[] data_buf){
+        if((header_buf.length < 12) || (data_buf.length == 0)){
+            GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "Short packet dropped: header "+header_buf.length+"; data "+data_buf.length );
+            return;
+        }
+
+        DiagDataPacket diagPkt = new DiagDataPacket(header_buf, data_buf);
+        fifo.add(diagPkt);
+
     }
 
     public void stopRevealer(){
@@ -52,16 +68,20 @@ public class DiagRevealerControl {
     }
 
     public String[] getKnownMessageTypes(){
-        String[] str = (String[]) getTypeNames();
-        return str;
+        return (String[]) getTypeNames();
     }
 
-    public boolean writeNewDiagCfg(String[] msgTypes, String filePath){
-        GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "Trying to write new config file " + filePath + "/Diag.cfg");
+    public String decodePacket(byte[] bb){
+        processLogChunk(bb);
+        return "shit!";
+    }
+
+    public boolean writeNewDiagCfg(String[] msgTypes){
+        GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "Trying to write new config file " + diagConfigFilePath);
         GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "Enabled log messages count:  " + msgTypes.length);
         for(String str:msgTypes) GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, str);
 
-        Object[] resp = writeDiagCfg( msgTypes,  filePath+"/Diag.cfg");
+        Object[] resp = writeDiagCfg( msgTypes,  diagConfigFilePath);
         GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "response code " + (Integer)resp[0] +"; explanation: " + (String)resp[1] );
 
         if((Integer)resp[0] == 0){
@@ -71,9 +91,10 @@ public class DiagRevealerControl {
         }
     }
 
+    private native void         processLogChunk(byte[] bb);
+    private native Object[]     readDiag(String diagConfigFilePath);
+    private native void         stopDiag();
+    private native Object[]     getTypeNames();
+    private native Object[]     writeDiagCfg(String[] msgTypes, String fileName);
 
-    private native void     readDiag();
-    private native void     stopDiag();
-    private native Object[] getTypeNames();
-    private native Object[]  writeDiagCfg(String[] msgTypes, String fileName);
 }

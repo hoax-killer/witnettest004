@@ -11,10 +11,13 @@ android {
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             cmake {
-                cppFlags "-std=c++11"
+
+                cppFlags "-fexceptions -frtti -std=c++11"
+                arguments "-DANDROID_STL=c++_shared"
             }
         }
     }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -24,6 +27,7 @@ android {
     externalNativeBuild {
         cmake {
             path "CMakeLists.txt"
+
         }
     }
 }

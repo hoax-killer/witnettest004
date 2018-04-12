@@ -2,7 +2,7 @@
 #include <algorithm>
 
 
-
+// https://android.googlesource.com/kernel/msm.git/+/android-7.1.0_r0.3/include/linux/diagchar.h
 
 int
 get_equip_id (int type_id) {

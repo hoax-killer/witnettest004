@@ -2,9 +2,17 @@ package net.ddns.koshka.witnettest004;
 
 import android.os.Handler;
 import android.os.Message;
+import android.util.Log;
 
+import java.math.BigInteger;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
 
 /**
  * Created by siralex on 19-Mar-18.
@@ -12,10 +20,16 @@ import java.util.List;
 
 public class TestLogElement{
 
-    MyFIFO fifo;
+    private ArrayBlockingQueue<DiagDataPacket> fifo;
+    private int fifoTotalCapacity       = 0;
+    private volatile long fifoPktTimeShift  = 0;
+    private String fifoLastPaketTimestamp  = "";
+    DiagRevealerControl DRC;
 
-    public TestLogElement ( MyFIFO f){
+    public TestLogElement ( ArrayBlockingQueue<DiagDataPacket> f, DiagRevealerControl drc){
         fifo    = f;
+        fifoTotalCapacity = fifo.remainingCapacity();
+        DRC = drc;
     }
 
 
@@ -23,22 +37,48 @@ public class TestLogElement{
         new Thread(new Runnable() {
             @Override
             public void run() {
-                String str;
-                Message msg;
-                byte[] data = new byte[5];
+                DiagDataPacket diagPkt;
+                try {
+                    while(true){
+
+                        diagPkt = fifo.take();
+                        fifoPktTimeShift = System.currentTimeMillis() - diagPkt.getEpochMs();
+                        fifoLastPaketTimestamp = diagPkt.getTimestamp();
+
+                        DRC.decodePacket(diagPkt.getPayload());
+
+                        //str = _print_hex(data);formatter.format(date
+                       //GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "msgtype: "+ msg_type + " msglen: " + msg_len + " ts: " + formatter.format(date)  );
+                        //GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, " " + _print_hex(data) +" "+ String.format("0x%16X", msg_ts)   );
+                    }
+                }catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+
+
+    }
+
+
+    public void updateBufStats(){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+
                 while(true){
-                    for(int i = 0; i<5; i++) data[i] = fifo.getDataByte();
-                    str = _print_hex(data);
+                    int i = fifo.remainingCapacity() * 100 / fifoTotalCapacity;
+                    GuiMessenger.getInstance().sendMessage(GuiMessenger.guiBufStatMsg, Integer.toString(i) );
+                    GuiMessenger.getInstance().sendMessage(GuiMessenger.guiBufLastMsgTime, fifoLastPaketTimestamp );
+                    GuiMessenger.getInstance().sendMessage(GuiMessenger.guiBufTimeshift,   Long.toString(fifoPktTimeShift) );
                     try {
-                        Thread.sleep(2000);
+                        Thread.sleep(300);
                     } catch (InterruptedException e) {
                         e.printStackTrace();
                     }
                 }
             }
         }).start();
-
-
     }
 
     private String _print_hex (byte[] bb){
@@ -49,7 +89,7 @@ public class TestLogElement{
             str1 = String.format("%02x ", bb[i]);
             str2 = str2 + str1;
         }
-        return str2 + "buf: " + fifo.loadPercentage()+"% "+ fifo.getStat();
+        return str2;
     }
 }
 

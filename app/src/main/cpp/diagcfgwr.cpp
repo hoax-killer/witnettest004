@@ -17,7 +17,12 @@
 #include <algorithm>
 #include <iostream>
 #include <sstream>
+#include <unistd.h>
+#include <errno.h>
+
+
 using namespace std;
+
 
 static bool send_msg (FILE * DiagCfgFile, const char *b, int length);
 
@@ -266,7 +271,26 @@ pair<int,string> generate_diag_cfg (string filepath, vector<string> msgTypes) {
 }
 
 
+// Return: successful or not
 
+string* disable_logs_command(int id) {
+	IdVector empty;
+	BinaryBuffer buf;
+
+    if(id == 0) {
+        buf = encode_log_config(DISABLE_DEBUG, empty);
+    }else{
+        buf = encode_log_config(DISABLE, empty);
+    }
+	if (buf.first == NULL || buf.second == 0) {
+		return NULL;
+	}
+
+	string frame = encode_hdlc_frame(buf.first, buf.second);
+    delete [] buf.first;
+    return &frame;
+
+}
 
 
 

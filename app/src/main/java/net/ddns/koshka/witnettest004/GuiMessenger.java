@@ -7,8 +7,11 @@ public class GuiMessenger {
     private Handler h = null;
     private static  GuiMessenger _instance = null;
 
-    public static final int guiLogMessage = 0;
-    public static final int runButtonText = 1;
+    public static final int guiLogMessage       = 0;
+    public static final int runButtonText       = 1;
+    public static final int guiBufStatMsg       = 2;
+    public static final int guiBufLastMsgTime   = 3;
+    public static final int guiBufTimeshift     = 4;
 
     private GuiMessenger(){}
 

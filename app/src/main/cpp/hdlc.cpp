@@ -78,3 +78,59 @@ encode_hdlc_frame (const char *payld, int length) {
     retstr.append(1, '\x7e');
     return retstr;
 }
+
+static std::string hdlcPktBuffer;
+
+void
+feed_binary (const char *b, int length) {
+    hdlcPktBuffer.append(b, length);
+}
+
+void
+reset_binary() {
+    hdlcPktBuffer.clear();
+}
+
+static void
+unescape (std::string& frame) {
+    bool esc = false;
+    std::string output;
+    for (size_t i = 0; i < frame.size(); i++) {
+        if (esc) {
+            output.append(1, char(frame[i] ^ ESCAPE_XOR));
+            esc = false;
+        } else if (frame[i] == '\x7d') {
+            esc = true;
+        } else {
+            output.append(1, frame[i]);
+        }
+    }
+    frame = output;
+    return;
+}
+
+// Return: if there is new frame or not
+bool
+get_next_frame (std::string& output_frame, bool& crc_correct) {
+    size_t delim = hdlcPktBuffer.find('\x7e');
+    if (delim == std::string::npos)
+        return false;
+    output_frame = hdlcPktBuffer.substr(0, delim);
+    hdlcPktBuffer.erase(0, delim + 1);
+
+    unescape(output_frame);
+    if (output_frame.size() <= 2) {
+        crc_correct = false;
+        return true;
+    }
+    // little endian
+    UINT16 b1 = output_frame[output_frame.size() - 1] & 0xFF;
+    UINT16 b2 = output_frame[output_frame.size() - 2] & 0xFF;
+    UINT16 frame_crc16 = (b1 << 8) + b2;
+    output_frame.erase(output_frame.size() - 2);
+
+    UINT16 crc16 = calc_crc((UINT8 *) output_frame.c_str(), output_frame.size(), 0);
+
+    crc_correct = (frame_crc16 == crc16);
+    return true;
+}

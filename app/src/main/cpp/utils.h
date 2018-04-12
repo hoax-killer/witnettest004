@@ -7,6 +7,7 @@
 
 #ifndef UTILS_H_
 #define UTILS_H_
+#define ARRAY_SIZE(array, element_type) (sizeof(array) / sizeof(element_type))
 
 #include "consts.h"
 
