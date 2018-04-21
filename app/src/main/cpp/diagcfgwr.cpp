@@ -34,7 +34,7 @@ static bool
 map_typenames_to_ids (vector<string> type_names, IdVector& type_ids) {
 
 	for( string curTypeName:type_names) {
-		int cnt = find_ids(curTypeName.c_str(), type_ids);
+		int cnt = find_ids( curTypeName.c_str(), type_ids);
 		if (cnt == 0) {return false;}
 	}
 	return true;

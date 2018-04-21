@@ -4,11 +4,14 @@ import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.os.Handler;
+import android.support.annotation.IntegerRes;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.text.method.ScrollingMovementMethod;
+import android.util.Log;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -41,6 +44,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
 // initializing GUI elements
         tv = (TextView) findViewById(R.id.sample_text);
@@ -94,13 +98,19 @@ public class MainActivity extends AppCompatActivity {
 // initializing the list of all diagnostic messages that can be requested via Diag.cgf
             cfgMsgList = new CfgMessage[DRC.getKnownMessageTypes().length];
             int i = 0;
-            for(String mt : DRC.getKnownMessageTypes()){
-                cfgMsgList[i] = new CfgMessage(mt, false);
-                i++;
+            for(Object mt : DRC.getKnownMessageTypes()){
+
+                    String msgTypeName = (String) ((Object[]) mt)[0];
+                    Integer msgTypeId = (Integer) ((Object[]) mt)[1];
+
+                    cfgMsgList[i] = new CfgMessage(msgTypeName, msgTypeId, false);
+
+                    i++;
+
             }
 
 // initializing test FIFO consumer
-            TestLogElement testlog = new TestLogElement(diagLogBuffer, DRC);
+            TestLogElement testlog = new TestLogElement(diagLogBuffer, cfgMsgList, DRC);
             testlog.runTest();
             testlog.updateBufStats();
 
@@ -232,7 +242,7 @@ public class MainActivity extends AppCompatActivity {
 
         }
 
-        //_update_security_policy();
+        _update_security_policy();
 
         return true;
     }
@@ -256,7 +266,8 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean _update_security_policy(){
         String cmd;
-
+        cmd = "echo 0 > /sys/fs/selinux/enforce";
+/*
         cmd = "setenforce 0; ";
         cmd = cmd + "supolicy --live \"allow init logd dir getattr\";";
 
@@ -299,9 +310,23 @@ public class MainActivity extends AppCompatActivity {
         cmd = cmd + "supolicy --live \"allow wcnss_service mnt_user_file lnk_file {read}\";";
 
         cmd = cmd + "supolicy --live \"allow wcnss_service fuse file {read append getattr}\";";
+*/
 
-        String res = ExecuteShellCommand.executeAsRoot(cmd,true);
-        tv.append(res + "\n");
+        String res;
+        res = ExecuteShellCommand.executeAsRoot("/system/bin/getenforce", true);
+        if(res.matches("^.*Enforcing.*$")){
+            res = ExecuteShellCommand.executeAsRoot(cmd,true);
+            tv.append("Make SELinux permissive: "+ res + "\n");
+            if(res.matches("^.*Ok.*$")){
+                return true;
+            }else{
+                return false;
+            }
+        }else if(res.matches("^.*Permissive.*$")){
+            tv.append("SELinux already Permissive\n");
+        }
+
+
 
         return true;
     }
@@ -311,15 +336,18 @@ class CfgMessage
 {
     private String typeName;
     private boolean enabled;
+    private Integer typeId;
 
-    public CfgMessage(String key, boolean value)
+    public CfgMessage(String key, Integer id, boolean value)
     {
         typeName    = key;
+        typeId      = id;
         enabled     = value;
     }
 
     public String   getTypeName()           { return typeName; }
     public boolean  isEbabled()             { return enabled; }
+    public Integer  getTypeId()             {return typeId;}
     public void     setTypeName(String str) { typeName = str;}
     public void     enable(boolean b)       { enabled = b;}
 }

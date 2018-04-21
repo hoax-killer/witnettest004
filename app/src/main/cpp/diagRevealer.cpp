@@ -175,7 +175,7 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_writeDiagCfg(
 }
 
 extern "C"
-JNIEXPORT void JNICALL
+JNIEXPORT jstring JNICALL
 Java_net_ddns_koshka_witnettest004_DiagRevealerControl_processLogChunk(
         JNIEnv *env,
         jobject obj,
@@ -202,21 +202,23 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_processLogChunk(
         }
 
         if(is_log_packet(frame.data(), frame.size())){
-            LOGD("IS LOG PACKET\n");
+
             const char *s = frame.data();
 // https://android.googlesource.com/kernel/msm.git/+/android-7.1.0_r0.3/drivers/char/diag/diag_dci.c
 // функция extract_dci_log
 // 8 = 2 (0x1000) + 2 (len1) + 2 (log_msg_len) + 2 (type_id)
-            string decoded = decode_log_packet(s + 2,  frame.size() - 2, false);
-
+            string json_packet = decode_log_packet(s + 2,  frame.size() - 2, false);
+            env->ReleaseByteArrayElements(pktbytes, (jbyte*)payload_buf, 0);
+            return env->NewStringUTF(json_packet.data());
         }else{
-            LOGD("NOT LOG PACKET\n");
+            //LOGD("NOT LOG PACKET\n");
         }
 
     }
 
 
     env->ReleaseByteArrayElements(pktbytes, (jbyte*)payload_buf, 0);
+    return env->NewStringUTF("");
 }
 
 
@@ -229,11 +231,25 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_getTypeNames(
 
     jobjectArray ret;
 
-    ret= (jobjectArray)env->NewObjectArray(LogPacketTypeID_To_Name.size(),env->FindClass("java/lang/String"),NULL);
+    int cnt = 0;
+    for(int i=0; i<LogPacketTypeID_To_Name.size(); i++){if(LogPacketTypeID_To_Name[i].enabled) cnt++;}
+    ret= (jobjectArray)env->NewObjectArray(cnt, env->FindClass("java/lang/Object"),NULL);
 
+
+/*
     for(int i=0; i<LogPacketTypeID_To_Name.size(); i++)
         env->SetObjectArrayElement(ret,i,env->NewStringUTF(LogPacketTypeID_To_Name[i].name));
+*/
+    int j=0;
+    for(int i=0; i<LogPacketTypeID_To_Name.size(); i++){
+        if(!LogPacketTypeID_To_Name[i].enabled) continue;
 
+        jobjectArray retobjarr= (jobjectArray)env->NewObjectArray(2,env->FindClass("java/lang/Object"),NULL);
+        env->SetObjectArrayElement(retobjarr,0,env->NewStringUTF(LogPacketTypeID_To_Name[i].name));
+        env->SetObjectArrayElement(retobjarr,1,NewInteger(env, LogPacketTypeID_To_Name[i].val));
+
+        env->SetObjectArrayElement(ret,j++,retobjarr);
+    }
     return ret;
 }
 
@@ -540,7 +556,7 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
     // через ioctl вызывть функц. diag_state_close_smd() или из memory_device_mode в no_logging_mode?
 
     LOGD("Trying to stop logs\n");
-    char  tmpbuf[64];
+    char  tmpbuf[128];
     // two commands: DISABLE_DEBUG and DISABLE
     for(int comm_id = 0; comm_id < 2; comm_id ++){
         string* framep = disable_logs_command( comm_id);
@@ -554,7 +570,7 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
 
         *((int *)tmpbuf) = htole32(USER_SPACE_DATA_TYPE); // header
         memcpy(tmpbuf+4, frame.data(),frame.size() ); // command
-        ret = write (fd,  tmpbuf, frame.size());
+        ret = write (fd,  tmpbuf, frame.size()+4);
 
         if(ret<0) {
             LOGD("Stop logging error (err=%d): %s\n", ret, strerror(errno));
@@ -562,10 +578,12 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
             break;
         }
         if((ret >= 0) && (comm_id == 1)){
-            LOGD("Stop logging commands succeed\n");
+            LOGD("Stop logging commands succeeded\n");
             //myresult <<  " \nStop logging commands succeed.";
         }
+
     }
+
 /*
      _diag_switch_logging(fd, USB_MODE);
 
@@ -606,9 +624,6 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_stopDiag(
         JNIEnv *env,
         jobject obj) {
     if(!must_stop) must_stop = true;
-
-
-
 }
 
 jobject NewInteger(JNIEnv* env, int value)
@@ -618,10 +633,6 @@ jobject NewInteger(JNIEnv* env, int value)
     return env->NewObject(integerClass, integerConstructor, static_cast<jint>(value));
 }
 
-int _stop_logging(int fd){
-    // get prepared end hdlc encoded STOP command
-
-}
 
 bool _diag_switch_logging(int fd, int log_mode){
     int ret;

@@ -11,7 +11,7 @@
             android:id="@+id/sample_text"
             android:layout_width="0dp"
             android:layout_height="0dp"
-            android:layout_marginBottom="200dp"
+            android:layout_marginBottom="110dp"
             android:layout_marginEnd="8dp"
             android:layout_marginStart="8dp"
             android:layout_marginTop="64dp"
@@ -28,24 +28,24 @@
             app:layout_constraintTop_toTopOf="parent" android:fontFamily="monospace"/>
 
     <Button
-        android:id="@+id/button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="140dp"
-        android:layout_marginStart="8dp"
-        android:text="Run"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+            android:id="@+id/button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="60dp"
+            android:layout_marginStart="8dp"
+            android:text="Run"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"/>
 
     <Button
-        android:id="@+id/button2"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="140dp"
-        android:layout_marginEnd="8dp"
-        android:text="Exit App"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+            android:id="@+id/button2"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="60dp"
+            android:layout_marginEnd="8dp"
+            android:text="Exit App"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"/>
 
     <TextView
             android:id="@+id/textViewX"
@@ -91,14 +91,14 @@
             app:layout_constraintTop_toTopOf="parent"/>
 
     <Button
-        android:id="@+id/button3"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="80dp"
-        android:layout_marginStart="8dp"
-        android:text="New Diag.cfg"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+            android:id="@+id/button3"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:layout_marginStart="8dp"
+            android:text="New Diag.cfg"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"/>
     <TextView
             android:text="buffer free, %"
             android:layout_width="67dp"

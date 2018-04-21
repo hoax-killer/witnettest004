@@ -145,8 +145,8 @@ _decode_by_fmt (const Fmt fmt [], int n_fmt,
                 //int useconds = (double(iiii) / PER_USECOND) - double(seconds) * 1.0e6;
 
                 const unsigned long PER_MSECOND = 52428800 / 1000;
-                unsigned long mseconds = iiii / PER_MSECOND;
-                unsigned long epoch_gps_shift = 315964800000; //ms  between UNIX epoch and GPS epoch
+                unsigned long long mseconds = iiii / PER_MSECOND;
+                unsigned long long epoch_gps_shift = 315964800000; //ms  between UNIX epoch and GPS epoch
 
 
 
@@ -210,7 +210,8 @@ _decode_by_fmt (const Fmt fmt [], int n_fmt,
 
             case PLACEHOLDER:
             {
-                j["PLACEHOLDER"] = 0 ;
+                // it is only name just now, later it would be filled from other fields etc
+                j[fmt[i].field_name] = 0;
                 break;
             }
 

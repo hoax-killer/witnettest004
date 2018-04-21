@@ -12,17 +12,50 @@
 #include "consts.h"
 #include <android/log.h>
 #include "nlohmann/json.hpp"
+#include "gsm_rr_cell_reselection_meas.h"
+#include "lte_phy_serving_cell_meas_res.h"
 
 using json = nlohmann::json;
 using namespace std;
 
+void
+payload_decode (const char *b, size_t length, LogPacketType type_id, json &j)
+{
+    //LOGD("in payload_decode\n");
+    int offset = 0;
+    json jj;
+    switch (type_id) {
+        case LTE_PHY_Serving_Cell_Measurement_Result: {
+            offset += _decode_by_fmt(LtePhySubpktFmt,
+                                     ARRAY_SIZE(LtePhySubpktFmt, Fmt),
+                                     b, offset, length, jj);
+            j["payload"]["LtePhySubpkt"]["header"] = jj;
+            offset += _decode_lte_phy_subpkt(b, offset, length, j);
 
-#define  LOG_TAG    "witnettest"
-#define  LOGD(...)  __android_log_print(ANDROID_LOG_DEBUG,LOG_TAG,__VA_ARGS__)
+            break;
+        }
+        case GSM_RR_Cell_Reselection_Meas: {
+            offset += _decode_by_fmt(GsmRrCellResMeas_Fmt,
+                                     ARRAY_SIZE(GsmRrCellResMeas_Fmt, Fmt),
+                                     b, offset, length, jj);
+            j["payload"]["GsmRrCellResMeas"] = jj;
+            string ss = j.dump();
+            //LOGD("packet: %s\n", ss.c_str());
+            offset += _decode_gsm_rcrm_payload(b, offset, length, j);
+            break;
+        }
+       // case WCDMA_CELL_ID:
+        //    offset += _decode_by_fmt(WcdmaCellIdFmt,
+         //                            ARRAY_SIZE(WcdmaCellIdFmt, Fmt),
+          //                           b, offset, length, result);
+          //  break;
+        default: {
+            LOGD("unknown payload type\n");
+        }
+    };
+}
 
-// // https://android.googlesource.com/kernel/msm.git/+/android-7.1.0_r0.3/drivers/char/diag/diag_dci.c
-// функция diag_process_single_dci_pkt и его хедер
-//#define LOG_CMD_CODE		0x10
+
 
 bool
 is_log_packet (const char *b, size_t length) {
@@ -41,8 +74,6 @@ string decode_log_packet (const char *b, size_t length, bool skip_decoding) {
 
     int offset = 0;
 
-    // Parse Header
-    //vector<pair<string, string>> result;
     json j;
 
     offset = 0;
@@ -50,31 +81,24 @@ string decode_log_packet (const char *b, size_t length, bool skip_decoding) {
                              b, offset, length, j["header"]);
 
 
-    std::string s = j.dump();
-
-    LOGD("json:  %s\n", s.c_str());
+    unsigned int type_id = j["header"]["type_id"];
 
 
-    // Differentiate using type ID
-/*
-    LogPacketType type_id = (LogPacketType) _map_result_field_to_name(
-            result,
-            "type_id",
-            LogPacketTypeID_To_Name,
-            ARRAY_SIZE(LogPacketTypeID_To_Name, ValueName),
-            "Unsupported");
-
-    if (skip_decoding) {    // skip further decoding
-
-        PyObject *t = Py_BuildValue("(ss#s)",
-                                    "Msg", b + offset, length-offset,
-                                    "raw_msg/skip_decoding");
-        PyList_Append(result, t);
-        Py_DECREF(t);
-        return result;
+    bool typeid_found = false;
+    for (int i = 0; i < LogPacketTypeID_To_Name.size(); i++) {
+        if(LogPacketTypeID_To_Name[i].val == type_id){
+            typeid_found = true;
+            break;
+        }
     }
 
-    on_demand_decode(b+offset, length-offset, type_id, result);
-*/
-    return "just string";
+
+    if(typeid_found){
+        payload_decode(b+offset, length-offset, (LogPacketType)type_id, j);
+        return j.dump();
+    }else{ // return header only
+        return j.dump();
+    }
+
 }
+

@@ -67,13 +67,12 @@ public class DiagRevealerControl {
         if(revealerIsRunning) stopDiag();
     }
 
-    public String[] getKnownMessageTypes(){
-        return (String[]) getTypeNames();
+    public Object[] getKnownMessageTypes(){
+        return  getTypeNames();
     }
 
     public String decodePacket(byte[] bb){
-        processLogChunk(bb);
-        return "shit!";
+        return processLogChunk(bb);
     }
 
     public boolean writeNewDiagCfg(String[] msgTypes){
@@ -91,7 +90,7 @@ public class DiagRevealerControl {
         }
     }
 
-    private native void         processLogChunk(byte[] bb);
+    private native String       processLogChunk(byte[] bb);
     private native Object[]     readDiag(String diagConfigFilePath);
     private native void         stopDiag();
     private native Object[]     getTypeNames();

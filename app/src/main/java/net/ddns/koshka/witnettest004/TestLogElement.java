@@ -3,15 +3,15 @@ package net.ddns.koshka.witnettest004;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
+import android.util.SparseArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.math.BigInteger;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 
 /**
@@ -24,12 +24,18 @@ public class TestLogElement{
     private int fifoTotalCapacity       = 0;
     private volatile long fifoPktTimeShift  = 0;
     private String fifoLastPaketTimestamp  = "";
+    private SparseArray knownDiagMsgs;
     DiagRevealerControl DRC;
 
-    public TestLogElement ( ArrayBlockingQueue<DiagDataPacket> f, DiagRevealerControl drc){
+    public TestLogElement ( ArrayBlockingQueue<DiagDataPacket> f, CfgMessage[] knownMsgs, DiagRevealerControl drc){
         fifo    = f;
         fifoTotalCapacity = fifo.remainingCapacity();
         DRC = drc;
+
+        knownDiagMsgs = new SparseArray();
+        for(CfgMessage msg : knownMsgs){
+            knownDiagMsgs.put(msg.getTypeId(), msg.getTypeName());
+        }
     }
 
 
@@ -38,6 +44,7 @@ public class TestLogElement{
             @Override
             public void run() {
                 DiagDataPacket diagPkt;
+                DateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss:SSS");
                 try {
                     while(true){
 
@@ -45,7 +52,32 @@ public class TestLogElement{
                         fifoPktTimeShift = System.currentTimeMillis() - diagPkt.getEpochMs();
                         fifoLastPaketTimestamp = diagPkt.getTimestamp();
 
-                        DRC.decodePacket(diagPkt.getPayload());
+                        String json_packet = DRC.decodePacket(diagPkt.getPayload());
+                        String outLogPacketStr = "\n\nincoming pkt.\n";
+
+                        JSONObject pktJsonObj;
+                        try {
+                            pktJsonObj = new JSONObject(json_packet);
+                            JSONObject header  = pktJsonObj.getJSONObject("header");
+                            int type_id = header.getInt("type_id");
+                            outLogPacketStr += "type_id: " + knownDiagMsgs.get(type_id) + "\n";
+                            long timestamp = header.getLong("timestamp");
+                            Date date = new Date(timestamp);
+                            outLogPacketStr += "pkt time: " + formatter.format(date) + "\n";
+                            int pktsz = header.getInt("log_msg_len");
+                            outLogPacketStr += "pkt size: " + pktsz + "\n";
+
+                            int spacesToIndentEachLevel = 2;
+                            JSONObject payloadObj = pktJsonObj.getJSONObject("payload");
+                            outLogPacketStr += payloadObj.toString(spacesToIndentEachLevel);
+
+
+                        } catch (JSONException e) {
+                            Log.e("witnettest", "Json parsing error: " + e.getMessage());
+                        }
+
+
+                        GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, " " + outLogPacketStr   );
 
                         //str = _print_hex(data);formatter.format(date
                        //GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "msgtype: "+ msg_type + " msglen: " + msg_len + " ts: " + formatter.format(date)  );

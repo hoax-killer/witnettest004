@@ -7,6 +7,7 @@
 
 #include <string>
 #include <sstream>
+#include "consts.h"
 
 // Field types
 enum FmtType {
@@ -38,6 +39,52 @@ const Fmt LogPacketHeaderFmt [] = {
 };
 
 
+
+
+const ValueName ValueNameCellIndex [] = {
+        // 4 bits
+        {0, "PCell"},
+        {1, "SCell"},
+};
+
+const ValueName ValueNameBandClassGSM [] = {
+        // 4 bits
+        {0, "Current 900/1800 Setting"},
+        {10, "1900 PCS"},
+        {11, "GSM 850"},
+};
+
+const ValueName ValueNameTimerState [] = {
+        // 8 bits
+        {0, "Stopped"},
+        {1, "Running"},
+        {2, "Expired"},
+};
+
+const ValueName ValueNameEnableOrDisable [] = {
+        {0, "Disabled"},
+        {1, "Enabled"},
+};
+
+const ValueName ValueNameYesOrNo [] = {
+        {0, "No"},
+        {1, "Yes"},
+};
+
+
+
+const Fmt WcdmaCellIdFmt [] = {
+        {UINT, "Uplink RF channel number", 4},    //Uplink RF channel number
+        {UINT, "Download RF channel number", 4},    //Download RF channel number
+        {UINT, "Cell ID", 4},               //Cell ID
+        {UINT, "UTRA registration area (overlapping URAs)", 1}, // UTRA registration area (overlapping URAs)
+        {SKIP, NULL, 2},    // Unknown yet
+        {UINT, "Allowed call access", 1},   //Allowed call access
+        {UINT, "PSC", 2},   //PSC
+        {PLMN_MK1, "PLMN", 6},  //PLMN
+        {UINT, "LAC", 4},    //Location area code
+        {UINT, "RAC", 4}     //routing area code
+};
 
 bool is_log_packet (const char *b, size_t length);
 std::string decode_log_packet (const char *b, size_t length, bool skip_decoding);

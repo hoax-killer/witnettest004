@@ -10,11 +10,6 @@
 #include <cstring>
 
 
-// Find multiple IDs coressponding to name, and append all IDs to out_vector
-// Return how many IDs are found
-// в текущий момент имеется всего два элемента с одинаковым именем и разными ID
-// аналогично всего 2 элемента содержат одинаковый ID при разных именах
-// и только из за них приходится отказатьс от использования map
 int
 find_ids (const char *name, IdVector& out_vector) {
     int cnt = 0;
@@ -27,6 +22,24 @@ find_ids (const char *name, IdVector& out_vector) {
     return cnt;
 }
 
+
+const char*
+search_name (const ValueName id_to_name [], int n, int val) {
+
+    for (int i = 0; i < n; i++) {
+        if (id_to_name[i].val == val) {
+            return id_to_name[i].name;
+        }
+    }
+    return NULL;
+}
+/*
+
+ *
+ *
+ *
+ *
+ *
 const char*
 search_name (int val) {
     for (int i = 0; i < LogPacketTypeID_To_Name.size(); i++) {
@@ -36,7 +49,7 @@ search_name (int val) {
     }
     return NULL;
 }
-
+*/
 
 bool
 typename_exist( const char *name ){
