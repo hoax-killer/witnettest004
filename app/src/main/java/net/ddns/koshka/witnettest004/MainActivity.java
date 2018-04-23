@@ -311,7 +311,7 @@ public class MainActivity extends AppCompatActivity {
 
         cmd = cmd + "supolicy --live \"allow wcnss_service fuse file {read append getattr}\";";
 */
-
+//TODO при выходе надо бы возвращать состояние SELinux в то которое было при старте
         String res;
         res = ExecuteShellCommand.executeAsRoot("/system/bin/getenforce", true);
         if(res.matches("^.*Enforcing.*$")){

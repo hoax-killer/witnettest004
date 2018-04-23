@@ -19,7 +19,12 @@
 #include "log_packet.h"
 #include "hdlc.h"
 #include <poll.h>
+#include <thread>
+#include <pthread.h>
+#include <atomic>
 
+
+//TODO логирование во всех сишных файлах инклюдить через один общий файл - utils кажется
 #define  LOG_TAG    "witnettest"
 
 #define  LOGD(...)  __android_log_print(ANDROID_LOG_DEBUG,LOG_TAG,__VA_ARGS__)
@@ -121,14 +126,20 @@ typedef struct {
 } binaryBuffer;
 
 volatile bool must_stop = false;
-bool io_timeout_reached = false;
+
+std::atomic<bool> worker_thread_finished (false);
+int worker_thread_result = -1;
+void handle_diag_write_interrupt(int sig)
+{
+    // this interrupt is called if writing to diag port hangs
+    LOGD("caught signal: %d \n", sig);
+    pthread_exit(0);
+}
 
 jobject NewInteger(JNIEnv* env, int value);
 bool _diag_switch_logging(int fd, int log_mode);
 
-void intr_handler(int sig){
-    LOGD("Inerrupt triggered\n");
-}
+
 
 static unsigned long long
 get_posix_timestamp () {
@@ -301,9 +312,12 @@ read_diag_cfg (const char *filename)
 }
 
 // Write commands to /dev/diag device.
+// this function is executed in separate thread because reading from diag blocking
 static int
 write_commands (int fd, binaryBuffer *pbuf_write)
 {
+    worker_thread_finished = false;
+    worker_thread_result = -1;
     size_t i = 0;
     char *p = pbuf_write->p;
 
@@ -316,8 +330,20 @@ write_commands (int fd, binaryBuffer *pbuf_write)
     if (send_buf == NULL) {
         //perror("Error");
         LOGD("malloc failed in write_commands\n");
+        worker_thread_finished = true;
         return -1;
     }
+
+    // prepare signal handler
+
+    struct sigaction act;
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = handle_diag_write_interrupt;
+    sigset_t   set;
+    sigemptyset(&set);
+    sigaddset(&set, SIGUSR2); // SIGUSR1 is blocked in Android
+    act.sa_mask = set;
+    sigaction(SIGUSR2, &act, 0);
 
     // Metadata for each mask command
     size_t offset = remote_dev ? 8 : 4; //offset of the metadata (one int for MSM, 2 ints for MDM)
@@ -336,6 +362,7 @@ write_commands (int fd, binaryBuffer *pbuf_write)
 // len 	length of current command from Diag.cfg
 // p	buffer containing Diag.cfg
     while (i < pbuf_write->len) {
+
         size_t len = 0;
         while (i + len < pbuf_write->len && p[i + len] != 0x7e) len++;
         if (i + len >= pbuf_write->len)
@@ -347,6 +374,7 @@ write_commands (int fd, binaryBuffer *pbuf_write)
             int ret = write(fd, (const void *) send_buf, len + offset);
             if (ret < 0) {
                 LOGD("write_commands error (len=%d, offset=%d): %s\n", len, offset, strerror(errno));
+                worker_thread_finished = true;
                 return -1;
             }
 
@@ -361,6 +389,7 @@ write_commands (int fd, binaryBuffer *pbuf_write)
 
             if (read_len < 0) {
                 LOGD("write_commands read error: %s\n", strerror(errno));
+                worker_thread_finished = true;
                 return -1;
             } else {
                 LOGD("Reading %d bytes of resp\n", read_len);
@@ -368,7 +397,9 @@ write_commands (int fd, binaryBuffer *pbuf_write)
         }
         i += len;
     }
-
+    fflush(stdout);
+    worker_thread_finished = true;
+    worker_thread_result = 0; // success
     return 0;
 }
 
@@ -426,7 +457,47 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
 
     LOGD("Diag.cfg has been read OK, trying to send it to diag port\n");
 
-    ret = write_commands(fd, &buf_write);
+    // we are launching this task in separate thread because, at least on my phone, the process
+    // of reading from DIAG interface is blocking. All attempts to set this device to non blocking mode were
+    // failed along with attempts to interrupt the process of reading which always resume after interrupt
+    // regardless of SA_RESTART flag. poll and select are also unable to prevent blocking.
+    std::thread t1(write_commands, fd, &buf_write);
+    pthread_t t1h = t1.native_handle();
+
+    unsigned int retries_n = 60;
+    unsigned int retry_t = 500000; //500ms in microseconds * 60 attempts
+    // wait for timeout or returning from working thread (successful or not)
+    while(retries_n > 0){
+        if(worker_thread_finished) break;
+        usleep(retry_t);
+        retries_n--;
+    }
+
+    if(worker_thread_result != 0){// result unsuccessful
+        LOGD("worker_thread_result != 0");
+        if(retries_n <= 0) { // timeout (thread hangs), killing working thread
+            LOGD("worker_thread: timeout detected\n");
+            t1.detach();
+            int status;
+            if ( (status = pthread_kill(t1h, SIGUSR2)) != 0){
+                LOGD("Error cancelling thread %d, error = %d (%s)", t1h, status, strerror(status));
+            }
+        }else{
+            LOGD("worker_thread: no timeout\n");
+            t1.join();
+        }
+
+
+        myresult <<  "Writing Diag.cfg to the port failed. \n" << "unable to continue\n";
+        LOGD("Write diag config failed\n");
+        env->SetObjectArrayElement(retobjarr,0,NewInteger(env, -1));
+        env->SetObjectArrayElement(retobjarr,1,env->NewStringUTF(myresult.str().c_str()));
+        close(fd);
+        return retobjarr;
+    }
+    t1.join();
+    LOGD("Write diag config OK\n");
+
     fflush(stdout);
     free(buf_write.p);
     if (ret != 0) {
@@ -554,11 +625,11 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
 
     //TODO наверное вместо этих команд, которые всё равно не останавливают лог надо
     // через ioctl вызывть функц. diag_state_close_smd() или из memory_device_mode в no_logging_mode?
-
+/*
     LOGD("Trying to stop logs\n");
     char  tmpbuf[128];
     // two commands: DISABLE_DEBUG and DISABLE
-    for(int comm_id = 0; comm_id < 2; comm_id ++){
+    for(int comm_id = 1; comm_id < 2; comm_id ++){
         string* framep = disable_logs_command( comm_id);
         if( framep == NULL){
             LOGD("Failed to stop  logging. Encoding failed.\n");
@@ -584,7 +655,7 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
 
     }
 
-/*
+
      _diag_switch_logging(fd, USB_MODE);
 
 
@@ -617,6 +688,7 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
     return retobjarr;
 
 }
+
 
 extern "C"
 JNIEXPORT void JNICALL

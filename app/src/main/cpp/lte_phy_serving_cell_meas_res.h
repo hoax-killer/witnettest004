@@ -354,7 +354,6 @@ _decode_lte_phy_subpkt(const char *b, int offset, size_t length,
                     // TODO: replace type ID to name.
 
                     if (success) {
-                        LOGD("parsing success\n");
                         j["payload"]["LtePhySubpkt"]["subpackets"].push_back(jsp);
                     } else {
                         LOGD("Unknown LTE PHY Subpacket version: 0x%x - %d\n", subpkt_id, subpkt_ver);
