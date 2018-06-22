@@ -16,5 +16,5 @@
 int find_ids (const char *name, IdVector& out_vector);
 const char* search_name (const ValueName id_to_name [], int n, int val);
 bool typename_exist( const char *name );
-
+std::string hexStr(unsigned char *data, int len);
 #endif /* UTILS_H_ */

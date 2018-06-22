@@ -13,17 +13,31 @@ android {
             cmake {
 
                 cppFlags "-fexceptions -frtti -std=c++11"
-                arguments "-DANDROID_STL=c++_shared"
+                arguments "-DANDROID_TOOLCHAIN=gcc",  "-DANDROID_STL=c++_shared"
+                cFlags += "-I" + file("src/main/jniLibs/includes").absolutePath
             }
         }
+        ndk {
+            abiFilters "armeabi-v7a"
+        }
+
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            ndk {
+                abiFilters "armeabi-v7a"
+            }
         }
     }
+    sourceSets {
+        main {
+            jni.srcDirs = ['src/main/jniLibs/']
+        }
+    }
+
     externalNativeBuild {
         cmake {
             path "CMakeLists.txt"

@@ -10,6 +10,7 @@
 #include <vector>
 #include "log_packet.h"
 #include "nlohmann/json.hpp"
+#include "utils.h"
 
 using json = nlohmann::json;
 using namespace std;
@@ -20,6 +21,7 @@ _decode_by_fmt (const Fmt fmt [], int n_fmt,
                 json &j) {
 
     int n_consumed = 0;
+    char str[20] = {0};
 
     for (int i = 0; i < n_fmt; i++) {
         const char *p = b + offset + n_consumed;
@@ -67,7 +69,7 @@ _decode_by_fmt (const Fmt fmt [], int n_fmt,
                 n_consumed += fmt[i].len;
                 break;
             }
-/*
+
             case BYTE_STREAM:
             {
                 char hex[10] = {};
@@ -76,61 +78,75 @@ _decode_by_fmt (const Fmt fmt [], int n_fmt,
                     sprintf(hex, "%02x", p[k] & 0xFF);
                     ascii_data += hex;
                 }
-                decoded = Py_BuildValue("s", ascii_data.c_str());
+                j[fmt[i].field_name] = ascii_data.c_str();
                 n_consumed += fmt[i].len;
                 break;
             }
 
             case BYTE_STREAM_LITTLE_ENDIAN:
             {
-                assert(fmt[i].len > 0);
-                char hex[10] = {};
-                std::string ascii_data = "0x";
-                for (int k = fmt[i].len - 1; k >= 0; k--) {
-                    sprintf(hex, "%02x", p[k] & 0xFF);
-                    ascii_data += hex;
+                if(fmt[i].len > 0) {
+                    char hex[10] = {};
+                    std::string ascii_data = "0x";
+                    for (int k = fmt[i].len - 1; k >= 0; k--) {
+                        sprintf(hex, "%02x", p[k] & 0xFF);
+                        ascii_data += hex;
+                    }
+                    j[fmt[i].field_name] = ascii_data.c_str();
+                    n_consumed += fmt[i].len;
+                }else{
+                    j[fmt[i].field_name] = "0xFFF";
                 }
-                decoded = Py_BuildValue("s", ascii_data.c_str());
-                n_consumed += fmt[i].len;
                 break;
             }
 
             case PLMN_MK1:
             {
-                assert(fmt[i].len == 6);
-                const char *plmn = p;
-                decoded = PyString_FromFormat("%d%d%d-%d%d%d",
-                                              plmn[0],
-                                              plmn[1],
-                                              plmn[2],
-                                              plmn[3],
-                                              plmn[4],
-                                              plmn[5]);
-                n_consumed += fmt[i].len;
+                if(fmt[i].len == 6) {
+                    const char *plmn = p;
+                    //LOGD("in payload_decode %02X %02X %02X %02X %02X %02X| \n",plmn[0],plmn[1],plmn[2],plmn[3],plmn[4],plmn[5] );
+                    sprintf(str, "%d%d%d-%d%d%d",
+                                                  plmn[0],
+                                                  plmn[1],
+                                                  plmn[2],
+                                                  plmn[3],
+                                                  plmn[4],
+                                                  plmn[5]);
+                    j[fmt[i].field_name] = str;
+                    n_consumed += fmt[i].len;
+                }else{
+                    j[fmt[i].field_name] = "000-000";
+                }
                 break;
             }
 
             case PLMN_MK2:
             {
-                assert(fmt[i].len == 3);
-                const char *plmn = p;
-                decoded = PyString_FromFormat("%d%d%d-%d%d",
-                                              plmn[0] & 0x0F,
-                                              (plmn[0] >> 4) & 0x0F,
-                                              plmn[1] & 0x0F,
-                                              plmn[2] & 0x0F,
-                                              (plmn[2] >> 4) & 0x0F);
-                // MNC can have two or three digits
-                int last_digit = (plmn[1] >> 4) & 0x0F;
-                if (last_digit < 10)    // last digit exists
-                    PyString_ConcatAndDel(&decoded, PyString_FromFormat("%d", last_digit));
-                n_consumed += fmt[i].len;
+                if(fmt[i].len == 3) {
+                    const char *plmn = p;
+                    sprintf(str, "%d%d%d-%d%d",
+                            plmn[0] & 0x0F,
+                            (plmn[0] >> 4) & 0x0F,
+                            plmn[1] & 0x0F,
+                            plmn[2] & 0x0F,
+                            (plmn[2] >> 4) & 0x0F);
+                    // MNC can have two or three digits
+                    int last_digit = (plmn[1] >> 4) & 0x0F;
+                    // TODO не факт что так можно делать
+                    if (last_digit < 10)    // last digit exists
+                        sprintf(&str[6], "%d", last_digit);
+
+                    j[fmt[i].field_name] = str;
+                    n_consumed += fmt[i].len;
+                }else{
+                    j[fmt[i].field_name] = "000-000";
+                }
                 break;
             }
-*/
+
             case QCDM_TIMESTAMP:
             {
-                // in old dok 80-V1294 time counter has 6 bytes to count with 1.25ms resolution
+                // in old doc 80-V1294 time counter has 6 bytes to count with 1.25ms resolution
                 // and 2 low bytes to count within 1.25 ms with rollover on 49152
                 // so we have one ms corresponding 39321 ticks => 1s ~ 39000000 ticks. Why 52 here?
 
@@ -165,45 +181,63 @@ _decode_by_fmt (const Fmt fmt [], int n_fmt,
                 n_consumed += fmt[i].len;
                 break;
             }
-/*
+
             case BANDWIDTH:
             {
-                assert(fmt[i].len == 1);
-                unsigned int ii = *((unsigned char *) p);
-                decoded = PyString_FromFormat("%d MHz", ii / 5);
-                n_consumed += fmt[i].len;
+                if(fmt[i].len == 1) {
+                    unsigned int ii = *((unsigned char *) p);
+                    sprintf(str, "%d MHz", ii / 5);
+                    j[fmt[i].field_name] = str;
+                    n_consumed += fmt[i].len;
+
+                }else{
+                    j[fmt[i].field_name] = "? MHz";
+                }
+
                 break;
             }
 
             case RSRP:
             {
                 // (0.0625 * x - 180) dBm
-                assert(fmt[i].len == 2);
-                short val = *((short *) p);
-                decoded = Py_BuildValue("f", val * 0.0625 - 180);
-                n_consumed += fmt[i].len;
+                if(fmt[i].len == 2) {
+                    short val = *((short *) p);
+                    sprintf(str, "f", val * 0.0625 - 180);
+                    j[fmt[i].field_name] = str;
+                    n_consumed += fmt[i].len;
+                }else{
+                    j[fmt[i].field_name] = "0.0";
+                }
                 break;
             }
 
             case RSRQ:
             {
                 // (0.0625 * x - 30) dB
-                assert(fmt[i].len == 2);
-                short val = *((short *) p);
-                decoded = Py_BuildValue("f", val * 0.0625 - 30);
-                n_consumed += fmt[i].len;
+                if(fmt[i].len == 2) {
+                    short val = *((short *) p);
+                    sprintf(str, "f", val * 0.0625 - 30);
+                    j[fmt[i].field_name] = str;
+                    n_consumed += fmt[i].len;
+                }else{
+                    j[fmt[i].field_name] = "0.0";
+                }
                 break;
             }
 
             case WCDMA_MEAS:
             {   // (x-256) dBm
-                assert(fmt[i].len == 1);
-                unsigned int ii = *((unsigned char *) p);
-                decoded = Py_BuildValue("i", (int)ii-256);
-                n_consumed += fmt[i].len;
+                if(fmt[i].len == 1) {
+                    unsigned int ii = *((unsigned char *) p);
+                    sprintf(str, "i", (int) ii - 256);
+                    j[fmt[i].field_name] = str;
+                    n_consumed += fmt[i].len;
+                }else{
+                    j[fmt[i].field_name] = 0;
+                }
                 break;
             }
-*/
+
             case SKIP:
                 n_consumed += fmt[i].len;
                 break;

@@ -18,6 +18,7 @@
 #include "diagcfgwr.h"
 #include "log_packet.h"
 #include "hdlc.h"
+#include "ws_wrap.h"
 #include <poll.h>
 #include <thread>
 #include <pthread.h>
@@ -127,8 +128,13 @@ typedef struct {
 
 volatile bool must_stop = false;
 
+
+
+
 std::atomic<bool> worker_thread_finished (false);
-int worker_thread_result = -1;
+volatile int worker_thread_result = -1;
+volatile bool epan_initialized = false;
+
 void handle_diag_write_interrupt(int sig)
 {
     // this interrupt is called if writing to diag port hangs
@@ -138,7 +144,8 @@ void handle_diag_write_interrupt(int sig)
 
 jobject NewInteger(JNIEnv* env, int value);
 bool _diag_switch_logging(int fd, int log_mode);
-
+void _gather_diag_data(JavaVM* jvm, jobject obj, int fd);
+std::string decode_msg(std::string msgType, std::string msgData);
 
 
 static unsigned long long
@@ -151,6 +158,71 @@ get_posix_timestamp () {
 
 }
 
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_net_ddns_koshka_witnettest004_DiagRevealerControl_wsTest(
+        JNIEnv *env,
+        jobject obj,
+        jbyte testnum){
+
+    LOGD("test procedure is called\n");
+    if(!epan_initialized) {
+        LOGD("preparing to execute initialize_epan()\n");
+        initialize_epan();
+        epan_initialized = true;
+        LOGD("epan init executed\n");
+    }else{
+        LOGD("epan already initialized\n");
+    }
+
+    std::string resultstr;
+    switch((unsigned char)testnum){
+        case 1:
+            resultstr = "Wireshark decoding test #1\n\"LTE-RRC_PCCH\", \"4001BF281AEBA00000\"\n";
+            resultstr.append(decode_msg("LTE-RRC_PCCH", "4001BF281AEBA00000"));
+            break;
+        case 2:
+            resultstr = "Wireshark decoding test #2\n\"RRC_MIB\", \"60c428205aa2fe0090c8506e422419822a3653940c40c0\"\n";
+            resultstr.append(decode_msg("RRC_MIB", "60c428205aa2fe0090c8506e422419822a3653940c40c0"));
+            break;
+        case 3:
+            resultstr = "Wireshark decoding test #3\n\"RRC_MIB\", \"10c424c05aa2fe00a0c850448c466608a8e54a80100a0100\"\n";
+            resultstr.append(decode_msg("RRC_MIB", "10c424c05aa2fe00a0c850448c466608a8e54a80100a0100"));
+            break;
+        case 4:
+            resultstr = "Wireshark decoding test #4\n\"RRC_SIB1\", \"c764b108500b1ba01483078a2be62ad0\"\n";
+            resultstr.append(decode_msg("RRC_SIB1", "c764b108500b1ba01483078a2be62ad0"));
+            break;
+        case 5:
+            resultstr = "Wireshark decoding test #5\n\"RRC_SIB3\", \"0d801f4544fc60005001000011094e\"\n";
+            resultstr.append(decode_msg("RRC_SIB3", "0d801f4544fc60005001000011094e"));
+            break;
+        case 6:
+            resultstr = "Wireshark decoding test #6\n\"RRC_SIB5\", \"63403AFFFF03FFFC5010F0290C0A8018000C8BF5B15EA0000003F5210E30000247894201400010440060222E56300C60202C000C14CC003C4300B6D830021844A0585760186AF400\"\n";
+            resultstr.append(decode_msg("RRC_SIB5", "63403AFFFF03FFFC5010F0290C0A8018000C8BF5B15EA0000003F5210E30000247894201400010440060222E56300C60202C000C14CC003C4300B6D830021844A0585760186AF400"));
+            break;
+        case 7:
+            resultstr = "Wireshark decoding test #7\n\"RRC_SIB7\", \"018000\"\n";
+            resultstr.append(decode_msg("RRC_SIB7", "018000"));
+            break;
+        case 8:
+            resultstr = "Wireshark decoding test #8\n\"RRC_SIB12\", \"b38111d024541a42a0\"\n";
+            resultstr.append(decode_msg("RRC_SIB12", "b38111d024541a42a0"));
+            break;
+        case 9:
+            resultstr = "Wireshark decoding test #9\n\"RRC_SIB19\", \"41a1001694e49470\"\n";
+            resultstr.append(decode_msg("RRC_SIB19", "41a1001694e49470"));
+            break;
+        default:
+            resultstr = "Wireshark decoding test unsupported\n";
+
+    }
+    //std::string mystr =
+    //std::string mystr =  decode_msg("RRC_MIB", "60c428205aa2fe0090c8506e422419822a3653940c40c0");
+    //LOGD("--- %s",mystr.c_str());
+    jstring result = env->NewStringUTF(resultstr.c_str());
+    return result;
+}
 
 extern "C"
 JNIEXPORT jobjectArray JNICALL
@@ -185,8 +257,11 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_writeDiagCfg(
     return retobjarr;
 }
 
+/*
+ * function gets a chunk of raw data from DIAG and returns array of decoded messages
+ */
 extern "C"
-JNIEXPORT jstring JNICALL
+JNIEXPORT jobjectArray JNICALL
 Java_net_ddns_koshka_witnettest004_DiagRevealerControl_processLogChunk(
         JNIEnv *env,
         jobject obj,
@@ -195,15 +270,14 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_processLogChunk(
     char* payload_buf = (char*)env->GetByteArrayElements( pktbytes, NULL);
     int buf_length = env->GetArrayLength(pktbytes);
 
-
+    vector<string> out_json_data;
 // we don't know how many network messages can be passed within one DIAG message
 // we also don't know that the boundary of DIAG message is valid HDLC boundary
 // that is why we push all DIAG messages is one buffer and extract network packets from there
-// using HDLC boundaries
-
+// as HDLC frames using HDLC boundaries
     feed_binary(payload_buf, buf_length);
 
-    string frame;
+    string frame = "";
     bool crc_correct    = false;
 
     while(get_next_frame(frame, crc_correct)){
@@ -219,17 +293,21 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_processLogChunk(
 // функция extract_dci_log
 // 8 = 2 (0x1000) + 2 (len1) + 2 (log_msg_len) + 2 (type_id)
             string json_packet = decode_log_packet(s + 2,  frame.size() - 2, false);
-            env->ReleaseByteArrayElements(pktbytes, (jbyte*)payload_buf, 0);
-            return env->NewStringUTF(json_packet.data());
+            out_json_data.push_back(json_packet);
         }else{
             //LOGD("NOT LOG PACKET\n");
         }
 
     }
+    // prepare array of objects to return gathered data
+    jobjectArray ret= (jobjectArray)env->NewObjectArray(out_json_data.size(), env->FindClass("java/lang/Object"),NULL);
+    for(int i=0; i<out_json_data.size(); i++){
+        env->SetObjectArrayElement(ret,i, env->NewStringUTF(out_json_data[i].c_str()));
+    }
 
 
     env->ReleaseByteArrayElements(pktbytes, (jbyte*)payload_buf, 0);
-    return env->NewStringUTF("");
+    return ret;
 }
 
 
@@ -397,10 +475,13 @@ write_commands (int fd, binaryBuffer *pbuf_write)
         }
         i += len;
     }
+    LOGD("write_commands: OK, exiting\n");
+    worker_thread_result = 0; // success
     fflush(stdout);
     worker_thread_finished = true;
-    worker_thread_result = 0; // success
+
     return 0;
+
 }
 
 extern "C"
@@ -464,6 +545,8 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
     std::thread t1(write_commands, fd, &buf_write);
     pthread_t t1h = t1.native_handle();
 
+    worker_thread_finished = false;
+    // give 30sec to write config to the port
     unsigned int retries_n = 60;
     unsigned int retry_t = 500000; //500ms in microseconds * 60 attempts
     // wait for timeout or returning from working thread (successful or not)
@@ -487,7 +570,7 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
             t1.join();
         }
 
-
+        LOGD("thread_result_2: %i\n", worker_thread_result);
         myresult <<  "Writing Diag.cfg to the port failed. \n" << "unable to continue\n";
         LOGD("Write diag config failed\n");
         env->SetObjectArrayElement(retobjarr,0,NewInteger(env, -1));
@@ -496,134 +579,60 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
         return retobjarr;
     }
     t1.join();
+
     LOGD("Write diag config OK\n");
 
     fflush(stdout);
     free(buf_write.p);
-    if (ret != 0) {
-        myresult <<  "writing Diag.cfg failed " << ret << "end";
-        LOGD("writing Diag.cfg failed with result %d\n", ret);
-        env->SetObjectArrayElement(retobjarr,0,NewInteger(env, -1));
-        env->SetObjectArrayElement(retobjarr,1,env->NewStringUTF(myresult.str().c_str()));
-        close(fd);
-        return retobjarr;
+    reset_binary(); // resetting buffer for HDLC decoding
+
+    must_stop = false;
+    worker_thread_finished = false;
+    worker_thread_result = -1;
+    JavaVM* jvm;
+    env->GetJavaVM(&jvm);
+    jobject myobj = env->NewGlobalRef(obj);
+
+    // reading data from diag in separate thread because the reading is blocking
+    // and we can't properly stop reading if there is no packets
+    std::thread t2(_gather_diag_data, jvm, myobj, fd);
+    pthread_t t2h = t2.native_handle();
+    while(1){ // wait for command to stop
+        if(must_stop)break;
+        usleep(50000);
     }
 
-    jclass cls = env->GetObjectClass(obj);
-    jmethodID mid = env->GetMethodID(cls, "logRevealer", "([B[B)V");
+    myresult <<  " \nStop command received.";
 
-    LOGD("writing Diag.cfg OK, trying to read logs\n");
-
-    struct pollfd  fds[1];
-    fds[0].fd = fd;
-    fds[0].events = POLLIN;
-
-    //int result;
-   //fd_set readset;
-   //FD_ZERO(&readset);
-   //FD_SET(fd, &readset);
-
-    //struct sigaction new_action;
-    //new_action.sa_handler=intr_handler;
-    //sigemptyset(&new_action.sa_mask);
-    //new_action.sa_flags=0;
-    //sigaction(SIGALRM, &new_action, 0);
-    //alarm(0);
-// {[4b USDT][4b num_data][? 4b][4b msg_len]|payload>>[data]}
-    while(1){
-
-        ret = poll(fds,1,0);
-        if(fds[0].revents & POLLIN){
-            //LOGD("enter blocking read");
-            // this request is blocking
-            //alarm(10);
-            int read_len = read(fd, buf_read, sizeof(buf_read));
-            //alarm(0);
-            //LOGD("exiting blocking read with data %i\n", read_len);
-            if (read_len > 0) {
-                if (*((int *)buf_read) == USER_SPACE_DATA_TYPE) {
-                    int num_data = *((int *)(buf_read + 4));
-                    int i = 0;
-                    long long offset = remote_dev ? 12 : 8;
-                    int send_offset = 0;
-
-                    short fifo_msg_type = FIFO_MSG_TYPE_LOG;
-                    short fifo_msg_len;
-                    unsigned long long ts = get_posix_timestamp();
-                    char buf_head[12] = {};
-                    //LOGD("revealer got submessages num. %i\n", num_data);
-                    for (i = 0; i < num_data; i++) {
-                        // apparently subpacket consist of two fields: 4 bytes msg_len and message
-                        //read msg_len
-                        int msg_len = 0;
-                        memcpy(&msg_len, buf_read + offset, sizeof(int));
-                        if (msg_len < 0) continue;
-
-
-                        // Write payload to pipe
-                        // +4 for msg_len
-                        memcpy(buf_send+send_offset, buf_read + offset + 4, msg_len);
-
-
-                        offset += msg_len + 4;
-                        send_offset += msg_len;
-
-                        //LOGD("revealer got submessage. size: %i\n", msg_len);
-                    }
-                    // actually we make buf_send from incoming messages excluding all headers
-                    // I presume we won't need headers because data is HDLC encoded
-                    // now we form our own header for this combined buffer
-                    //LOGD("revealer got message. size: %i\n", send_offset);
-                    short head_offset = 0;
-                    memcpy(buf_head+head_offset, &fifo_msg_type, sizeof(short));
-                    head_offset+=sizeof(short);
-
-                    // Write size of (payload + timestamp)
-                    fifo_msg_len = (short) send_offset + 8;
-                    memcpy(buf_head+head_offset, &fifo_msg_len, sizeof(short));
-                    head_offset+=sizeof(short);
-
-                    memcpy(buf_head+head_offset, &ts, sizeof(unsigned long long));
-                    head_offset+=sizeof(unsigned long long);
-
-                    jbyteArray headerArray  = env->NewByteArray(head_offset);
-                    env->SetByteArrayRegion(headerArray, 0, head_offset, (const jbyte *) buf_head);
-
-                    jbyteArray dataArray    = env->NewByteArray(send_offset);
-                    env->SetByteArrayRegion(dataArray, 0, send_offset, (const jbyte *) buf_send);
-
-                    env->CallVoidMethod(obj, mid, headerArray, dataArray);
-
-                    env->DeleteLocalRef(headerArray);
-                    env->DeleteLocalRef(dataArray);
-
-/*
-                    jbyteArray bArray = env->NewByteArray(send_offset);
-                    env->SetByteArrayRegion(bArray, 0, send_offset, (const jbyte *) buf_send);
-                    env->CallVoidMethod(obj, mid, bArray);
-
-                    env->DeleteLocalRef(bArray);
-*/
-
-                    //LOGD("packet been sent to FIFO. size: %i\n", send_offset);
-
-                }else{
-                    // TODO: Check other raw binary types
-                    // LOGI("Not USER_SPACE_DATA_TYPE: %d\n", *((int *)buf_read));
-                }
-            }
-        }
-
-
-        if(must_stop){
-            must_stop = false;
-            myresult <<  "STOP command received";
-            break;
-        }
-
+    // wait for thread to notice the stop command (5 sec)
+    retries_n = 100;
+    retry_t = 50000; //50ms
+    // wait for timeout or returning from working thread (successful or not)
+    while(retries_n > 0){
+        if(worker_thread_finished) break;
+        usleep(retry_t);
+        retries_n--;
     }
 
-    //TODO наверное вместо этих команд, которые всё равно не останавливают лог надо
+    if(!worker_thread_finished){ //timeout
+        // because we gave 5 seconds to the thread to notice must_stop variable
+        // we presume that it is not inside Java call. 5 sec is enough to exit java call
+        // that is why we kill the thread without any mutex to avoid killing during access to Java
+        LOGD("worker_thread: timeout detected\n");
+        myresult <<  " \nDiag logging killed by timeout.";
+        t2.detach();
+        int status;
+        if ( (status = pthread_kill(t2h, SIGUSR2)) != 0){
+            LOGD("Error cancelling thread %d, error = %d (%s)", t2h, status, strerror(status));
+        }
+    }else{
+        myresult <<  " \nDiag logging stopped gracefully.";
+        LOGD("worker_thread: no timeout\n");
+        t2.join();
+    }
+    //t2.~thread();
+    env->DeleteGlobalRef(myobj);
+    //TODO как бы останавливать логирование? Может формировать и записывать пустой diag.cfg?
     // через ioctl вызывть функц. diag_state_close_smd() или из memory_device_mode в no_logging_mode?
 /*
     LOGD("Trying to stop logs\n");
@@ -753,4 +762,146 @@ bool _diag_switch_logging(int fd, int log_mode){
         LOGD("DIAG_IOCTL_SWITCH_LOGGING referenced simple command OK, response %d\n", ret);
         return true;
     }
+}
+
+
+void _gather_diag_data(JavaVM* jvm, jobject obj, int fd){
+    int ret;
+    JNIEnv * env;
+    jclass cls;
+    jmethodID mid;
+
+    // attaching to the main thread to get method from object-caller
+    if (jvm->AttachCurrentThread(&env, NULL) != 0) {
+        LOGD("diag_gatherer: failed to attach to main thread\n");
+        worker_thread_finished = true;
+        return;
+    }else {
+        cls = env->GetObjectClass(obj);
+        if(cls == NULL){
+            LOGD("diag_gatherer: unable to get class!\n");
+            worker_thread_finished = true;
+            return;
+        }
+        mid = env->GetMethodID(cls, "logRevealer", "([B[B)V");
+        if(mid == NULL){
+            LOGD("diag_gatherer: unable to get callback function!\n");
+            worker_thread_finished = true;
+            return;
+        }
+        jvm->DetachCurrentThread();
+    }
+
+
+
+    LOGD("trying to read logs\n");
+
+
+    // in case of device that has non-blocking Diag
+    struct pollfd  fds[1];
+    fds[0].fd = fd;
+    fds[0].events = POLLIN;
+
+// {[4b USDT][4b num_data][? 4b][4b msg_len]|payload>>[data]}
+    while(1){
+
+        ret = poll(fds,1,0);
+        if(fds[0].revents & POLLIN){
+            //LOGD("enter blocking read");
+            // this request is blocking
+            //alarm(10);
+            int read_len = read(fd, buf_read, sizeof(buf_read));
+            //alarm(0);
+            //LOGD("exiting blocking read with data %i\n", read_len);
+            if (read_len > 0) {
+                if (*((int *)buf_read) == USER_SPACE_DATA_TYPE) {
+                    int num_data = *((int *)(buf_read + 4));
+                    int i = 0;
+                    long long offset = remote_dev ? 12 : 8;
+                    int send_offset = 0;
+
+                    short fifo_msg_type = FIFO_MSG_TYPE_LOG;
+                    short fifo_msg_len;
+                    unsigned long long ts = get_posix_timestamp();
+                    char buf_head[12] = {};
+                    //LOGD("revealer got submessages num. %i\n", num_data);
+                    for (i = 0; i < num_data; i++) {
+                        // apparently subpacket consist of two fields: 4 bytes msg_len and message
+                        //read msg_len
+                        int msg_len = 0;
+                        memcpy(&msg_len, buf_read + offset, sizeof(int));
+                        if (msg_len < 0) continue;
+
+
+                        // Write payload to pipe
+                        // +4 for msg_len
+                        memcpy(buf_send+send_offset, buf_read + offset + 4, msg_len);
+
+
+                        offset += msg_len + 4;
+                        send_offset += msg_len;
+
+                        //LOGD("revealer got submessage. size: %i\n", msg_len);
+                    }
+                    LOGD("pkt-1: %02X %02X | %02X %02X | %02X %02X |%02X %02X |\n",buf_send[0],buf_send[1],buf_send[2],buf_send[3],buf_send[4],buf_send[5],buf_send[6],buf_send[7]);
+                    // actually we make buf_send from incoming messages excluding all headers
+                    // I presume we won't need headers because data is HDLC encoded
+                    // now we form our own header for this combined buffer
+                    //LOGD("revealer got message. size: %i\n", send_offset);
+                    short head_offset = 0;
+                    memcpy(buf_head+head_offset, &fifo_msg_type, sizeof(short));
+                    head_offset+=sizeof(short);
+
+                    // Write size of (payload + timestamp)
+                    fifo_msg_len = (short) send_offset + 8;
+                    memcpy(buf_head+head_offset, &fifo_msg_len, sizeof(short));
+                    head_offset+=sizeof(short);
+
+                    memcpy(buf_head+head_offset, &ts, sizeof(unsigned long long));
+                    head_offset+=sizeof(unsigned long long);
+
+                    // attaching to the main thread each time we need to access JVM
+                    if (jvm->AttachCurrentThread(&env, NULL) != 0) {
+                        LOGD("log reader: failed to attach to main thread\n");
+                    }else {
+                        jbyteArray headerArray = env->NewByteArray(head_offset);
+                        env->SetByteArrayRegion(headerArray, 0, head_offset, (const jbyte *) buf_head);
+
+                        jbyteArray dataArray = env->NewByteArray(send_offset);
+                        env->SetByteArrayRegion(dataArray, 0, send_offset, (const jbyte *) buf_send);
+
+                        env->CallVoidMethod(obj, mid, headerArray, dataArray);
+
+                        env->DeleteLocalRef(headerArray);
+                        env->DeleteLocalRef(dataArray);
+
+                        jvm->DetachCurrentThread();
+                    }
+
+
+//                    jbyteArray bArray = env->NewByteArray(send_offset);
+//                    env->SetByteArrayRegion(bArray, 0, send_offset, (const jbyte *) buf_send);
+//                    env->CallVoidMethod(obj, mid, bArray);
+
+//                    env->DeleteLocalRef(bArray);
+
+
+                    //LOGD("packet been sent to FIFO. size: %i\n", send_offset);
+
+                }else{
+                    // TODO: Check other raw binary types
+                    // LOGI("Not USER_SPACE_DATA_TYPE: %d\n", *((int *)buf_read));
+                }
+            }
+        }
+
+        if(must_stop){
+            LOGD("diag_gatherer detected stop command\n");
+            break;
+        }
+
+    }
+
+    worker_thread_finished = true;
+    return;
 }

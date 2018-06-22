@@ -30,14 +30,17 @@ import java.util.concurrent.ArrayBlockingQueue;
 public class MainActivity extends AppCompatActivity {
 
     TextView tv, buf_sz_tv, last_pkt_ts_tv, queue_timeshift_tv;
-    Button rbtn, exitbtn, cfgbtn;
+    Button rbtn, exitbtn, cfgbtn, txtclrbtn, test1btn, test2btn, test3btn, test4btn, test5btn, test6btn, test7btn, test8btn, test9btn;
     Handler h;
     DiagRevealerControl DRC;
     GuiMessenger GuiMsngr;
     CfgMessage[] cfgMsgList;
     Boolean readyToRun = false;
     ArrayBlockingQueue<DiagDataPacket> diagLogBuffer;
+    private List<String> msgLog = new ArrayList<String>();
+    private static final int MAX_LOG_LINES = 500;
     enum ChipsetType { QUALCOMM, MTK, UNKNOWN};
+    int textLogMessagesNum = 0;
 
     @SuppressLint("HandlerLeak")
     @Override
@@ -48,14 +51,27 @@ public class MainActivity extends AppCompatActivity {
 
 // initializing GUI elements
         tv = (TextView) findViewById(R.id.sample_text);
+
+        tv.setTextIsSelectable(true);
+        tv.setFocusable(true);
+        //tv.setFocusableInTouchMode(true);
         buf_sz_tv = (TextView) findViewById(R.id.textView6);
         last_pkt_ts_tv = (TextView) findViewById(R.id.textView4);
         queue_timeshift_tv = (TextView) findViewById(R.id.textViewX);
-        tv.setMovementMethod(new ScrollingMovementMethod());
-        rbtn    = (Button)findViewById(R.id.button);
-        exitbtn = (Button)findViewById(R.id.button2);
-        cfgbtn  = (Button)findViewById(R.id.button3);
-
+        //tv.setMovementMethod(new ScrollingMovementMethod());
+        rbtn        = (Button)findViewById(R.id.button);
+        exitbtn     = (Button)findViewById(R.id.button2);
+        cfgbtn      = (Button)findViewById(R.id.button3);
+        txtclrbtn   = (Button)findViewById(R.id.button4);
+        test1btn     = (Button)findViewById(R.id.button5);
+        test2btn     = (Button)findViewById(R.id.button7);
+        test3btn     = (Button)findViewById(R.id.button8);
+        test4btn     = (Button)findViewById(R.id.button9);
+        test5btn     = (Button)findViewById(R.id.button10);
+        test6btn     = (Button)findViewById(R.id.button11);
+        test7btn     = (Button)findViewById(R.id.button12);
+        test8btn     = (Button)findViewById(R.id.button13);
+        test9btn     = (Button)findViewById(R.id.button14);
         rbtn.setEnabled(false);
 
 // preparing OS queue handler to change GUI elements from other threads
@@ -64,6 +80,10 @@ public class MainActivity extends AppCompatActivity {
             public void handleMessage(android.os.Message msg) {
                 switch(msg.what) {
                     case 0: // write to log
+                        //if(++textLogMessagesNum > 10){
+                            //tv.setText("");
+                            //textLogMessagesNum = 0;
+                        //}
                         tv.append(msg.obj + "\n");
                         break;
                     case 1: // change button text
@@ -115,9 +135,15 @@ public class MainActivity extends AppCompatActivity {
             testlog.updateBufStats();
 
             tv.append("Init sequence completed successfully. \n");
+
         }
 
-
+// CLR button OnClik listener
+        txtclrbtn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                tv.setText("");
+            }
+        });
 
 // RUN/STOP button OnClik listener
         rbtn.setOnClickListener(new View.OnClickListener() {
@@ -140,6 +166,60 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+// TEST button OnClick listener
+        test1btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+               DRC.ws_test((byte)1);
+            }
+        });
+// TEST button OnClick listener
+        test2btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                DRC.ws_test((byte)2);
+            }
+        });
+        // TEST button OnClick listener
+        test3btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                DRC.ws_test((byte)3);
+            }
+        });
+        // TEST button OnClick listener
+        test4btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                DRC.ws_test((byte)4);
+            }
+        });
+        // TEST button OnClick listener
+        test5btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                DRC.ws_test((byte)5);
+            }
+        });
+        // TEST button OnClick listener
+        test6btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                DRC.ws_test((byte)6);
+            }
+        });
+        // TEST button OnClick listener
+        test7btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                DRC.ws_test((byte)7);
+            }
+        });
+        // TEST button OnClick listener
+        test8btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                DRC.ws_test((byte)8);
+            }
+        });
+        // TEST button OnClick listener
+        test9btn.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                DRC.ws_test((byte)9);
+            }
+        });
 // EXIT button OnClick listener
         exitbtn.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v) {
@@ -242,6 +322,8 @@ public class MainActivity extends AppCompatActivity {
 
         }
 
+        //ExecuteShellCommand.executeAsRoot("setprop log.redirect-stdio true",false);
+
         _update_security_policy();
 
         return true;
@@ -330,7 +412,8 @@ public class MainActivity extends AppCompatActivity {
 
         return true;
     }
-}
+
+ }
 
 class CfgMessage
 {
@@ -351,3 +434,4 @@ class CfgMessage
     public void     setTypeName(String str) { typeName = str;}
     public void     enable(boolean b)       { enabled = b;}
 }
+

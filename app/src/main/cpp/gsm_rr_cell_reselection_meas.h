@@ -7,7 +7,6 @@
 #include "log_packet_utils.h"
 #include "utils.h"
 #include "consts.h"
-#include <android/log.h>
 #include "nlohmann/json.hpp"
 
 using json = nlohmann::json;

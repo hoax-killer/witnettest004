@@ -4,6 +4,7 @@
 
 #include "hdlc.h"
 #include "consts.h"
+#include "utils.h"
 
 // Automatically generated CRC function
 // polynomial: 0x11021, bit reverse algorithm
@@ -79,17 +80,20 @@ encode_hdlc_frame (const char *payld, int length) {
     return retstr;
 }
 
+
 static std::string hdlcPktBuffer;
+
+void
+reset_binary() {
+    hdlcPktBuffer.clear();
+}
 
 void
 feed_binary (const char *b, int length) {
     hdlcPktBuffer.append(b, length);
 }
 
-void
-reset_binary() {
-    hdlcPktBuffer.clear();
-}
+
 
 static void
 unescape (std::string& frame) {
@@ -112,11 +116,15 @@ unescape (std::string& frame) {
 // Return: if there is new frame or not
 bool
 get_next_frame (std::string& output_frame, bool& crc_correct) {
+
     size_t delim = hdlcPktBuffer.find('\x7e');
     if (delim == std::string::npos)
         return false;
+
     output_frame = hdlcPktBuffer.substr(0, delim);
     hdlcPktBuffer.erase(0, delim + 1);
+
+    const char *s = output_frame.data();
 
     unescape(output_frame);
     if (output_frame.size() <= 2) {

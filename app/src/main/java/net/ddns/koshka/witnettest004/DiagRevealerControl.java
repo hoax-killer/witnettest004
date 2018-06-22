@@ -63,6 +63,11 @@ public class DiagRevealerControl {
 
     }
 
+    public void ws_test(byte testnum){
+        GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "\n\n");
+        GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, wsTest(testnum));
+    }
+
     public void stopRevealer(){
         if(revealerIsRunning) stopDiag();
     }
@@ -71,7 +76,7 @@ public class DiagRevealerControl {
         return  getTypeNames();
     }
 
-    public String decodePacket(byte[] bb){
+    public Object[] decodePacket(byte[] bb){
         return processLogChunk(bb);
     }
 
@@ -90,7 +95,8 @@ public class DiagRevealerControl {
         }
     }
 
-    private native String       processLogChunk(byte[] bb);
+    private native String       wsTest(byte testnum);
+    private native Object[]     processLogChunk(byte[] bb);
     private native Object[]     readDiag(String diagConfigFilePath);
     private native void         stopDiag();
     private native Object[]     getTypeNames();

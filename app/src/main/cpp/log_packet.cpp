@@ -14,6 +14,7 @@
 #include "nlohmann/json.hpp"
 #include "gsm_rr_cell_reselection_meas.h"
 #include "lte_phy_serving_cell_meas_res.h"
+#include "wcdma_signaling_messages.h"
 
 using json = nlohmann::json;
 using namespace std;
@@ -39,16 +40,24 @@ payload_decode (const char *b, size_t length, LogPacketType type_id, json &j)
                                      ARRAY_SIZE(GsmRrCellResMeas_Fmt, Fmt),
                                      b, offset, length, jj);
             j["payload"]["GsmRrCellResMeas"] = jj;
-            string ss = j.dump();
-            //LOGD("packet: %s\n", ss.c_str());
             offset += _decode_gsm_rcrm_payload(b, offset, length, j);
             break;
         }
-       // case WCDMA_CELL_ID:
-        //    offset += _decode_by_fmt(WcdmaCellIdFmt,
-         //                            ARRAY_SIZE(WcdmaCellIdFmt, Fmt),
-          //                           b, offset, length, result);
-          //  break;
+        case WCDMA_CELL_ID: {
+            offset += _decode_by_fmt(WcdmaCellIdFmt,
+                                     ARRAY_SIZE(WcdmaCellIdFmt, Fmt),
+                                     b, offset, length, jj);
+            j["payload"]["WcdmaRrcServCellInfo"] = jj;
+            break;
+        }
+        case WCDMA_Signaling_Messages: {
+            offset += _decode_by_fmt(WcdmaSignalingMessagesFmt,
+                                     ARRAY_SIZE(WcdmaSignalingMessagesFmt, Fmt),
+                                     b, offset, length, jj);
+            j["payload"]["WcdmaSigMsgs"] = jj;
+            offset += _decode_wcdma_signaling_messages(b, offset, length, j);
+            break;
+        }
         default: {
             LOGD("unknown payload type\n");
         }
@@ -73,16 +82,11 @@ is_debug_packet (const char *b, size_t length) {
 string decode_log_packet (const char *b, size_t length, bool skip_decoding) {
 
     int offset = 0;
-
     json j;
 
-    offset = 0;
     offset += _decode_by_fmt(LogPacketHeaderFmt, ARRAY_SIZE(LogPacketHeaderFmt, Fmt),
                              b, offset, length, j["header"]);
-
-
     unsigned int type_id = j["header"]["type_id"];
-
 
     bool typeid_found = false;
     for (int i = 0; i < LogPacketTypeID_To_Name.size(); i++) {
@@ -92,13 +96,10 @@ string decode_log_packet (const char *b, size_t length, bool skip_decoding) {
         }
     }
 
-
     if(typeid_found){
         payload_decode(b+offset, length-offset, (LogPacketType)type_id, j);
-        return j.dump();
-    }else{ // return header only
-        return j.dump();
     }
 
+    return j.dump();
 }
 
