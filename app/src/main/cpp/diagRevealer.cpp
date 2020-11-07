@@ -270,7 +270,7 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_processLogChunk(
     char* payload_buf = (char*)env->GetByteArrayElements( pktbytes, NULL);
     int buf_length = env->GetArrayLength(pktbytes);
 
-    vector<string> out_json_data;
+    vector<string> out_json_data = {};
 // we don't know how many network messages can be passed within one DIAG message
 // we also don't know that the boundary of DIAG message is valid HDLC boundary
 // that is why we push all DIAG messages is one buffer and extract network packets from there
@@ -295,10 +295,12 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_processLogChunk(
             string json_packet = decode_log_packet(s + 2,  frame.size() - 2, false);
             out_json_data.push_back(json_packet);
         }else{
-            //LOGD("NOT LOG PACKET\n");
+            LOGD("NOT LOG PACKET\n");
         }
 
     }
+
+    //LOGD("json size to send: %i\n", out_json_data.size());
     // prepare array of objects to return gathered data
     jobjectArray ret= (jobjectArray)env->NewObjectArray(out_json_data.size(), env->FindClass("java/lang/Object"),NULL);
     for(int i=0; i<out_json_data.size(); i++){
@@ -548,7 +550,7 @@ Java_net_ddns_koshka_witnettest004_DiagRevealerControl_readDiag(
     worker_thread_finished = false;
     // give 30sec to write config to the port
     unsigned int retries_n = 60;
-    unsigned int retry_t = 500000; //500ms in microseconds * 60 attempts
+    unsigned int retry_t = 500; //500ms in microseconds * 60 attempts
     // wait for timeout or returning from working thread (successful or not)
     while(retries_n > 0){
         if(worker_thread_finished) break;
@@ -843,6 +845,10 @@ void _gather_diag_data(JavaVM* jvm, jobject obj, int fd){
 
                         //LOGD("revealer got submessage. size: %i\n", msg_len);
                     }
+                    // first byte is a global packet type - log packet o modem debug message/
+                    // log packet should be 10 00, modem debug can vary
+                    // then goes message size two times (2b + 2b)
+                    // then type_id
                     LOGD("pkt-1: %02X %02X | %02X %02X | %02X %02X |%02X %02X |\n",buf_send[0],buf_send[1],buf_send[2],buf_send[3],buf_send[4],buf_send[5],buf_send[6],buf_send[7]);
                     // actually we make buf_send from incoming messages excluding all headers
                     // I presume we won't need headers because data is HDLC encoded

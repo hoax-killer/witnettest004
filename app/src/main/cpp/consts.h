@@ -154,13 +154,15 @@ enum LogPacketType {
     GSM_RR_Cell_Reselection_Meas 							= 0x51FC,
 
     Modem_debug_message 									= 0x1FEB,
+
+    NR_RRC_OTA_Packet = 0xB821,
 };
 
 // TODO
 // в будущем на основе этого массива надо сделать отображение простых имен в пользовательском интерфейсе в
 // группы реальных айдишников сообщений.
 
-const array<PktValueName, 79> LogPacketTypeID_To_Name = {{
+const array<PktValueName, 80> LogPacketTypeID_To_Name = {{
     {CDMA_Paging_Channel_Message,                       "CDMA_Paging_Channel_Message", false},
     {_1xEV_Connection_Attempt,                          "1xEV_Connection_Attempt", false},
     {_1xEV_Connection_Release,                          "1xEV_Connection_Release", false},
@@ -251,7 +253,7 @@ const array<PktValueName, 79> LogPacketTypeID_To_Name = {{
     {GSM_RR_Cell_Selection_Parameters,                   "GSM_RR_Cell_Selection_Parameters", false},
     {GSM_RR_Cell_Information,                            "GSM_RR_Cell_Information", false},
     {GSM_RR_Cell_Reselection_Meas,                       "GSM_RR_Cell_Reselection_Meas", true},
-
+    {NR_RRC_OTA_Packet,                                   "5G_NR_RRC_OTA_Packet", true},
     {Modem_debug_message,                                 "Modem_debug_message", false}
  }};
 

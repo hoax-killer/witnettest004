@@ -51,7 +51,8 @@ public class TestLogElement{
                     while(true){
 
                         diagPkt = fifo.take();
-                        byte[] buf_send = diagPkt.getPayload();
+                        outLogPacketStr = "";
+                       // byte[] buf_send = diagPkt.getPayload();
                         //Log.d("witnettest", "pkt-2: " + String.format("%02X %02X | %02X %02X | %02X %02X |%02X %02X |\n", buf_send[0],buf_send[1],buf_send[2],buf_send[3],buf_send[4],buf_send[5],buf_send[6],buf_send[7]) + "\n");
 
                         fifoPktTimeShift = System.currentTimeMillis() - diagPkt.getEpochMs();
@@ -84,8 +85,8 @@ public class TestLogElement{
                             }
 
                         }
-
-                        GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, " " + outLogPacketStr   );
+                        if(outLogPacketStr != "")
+                            GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, " " + outLogPacketStr   );
 
                         //str = _print_hex(data);formatter.format(date
                        //GuiMessenger.getInstance().sendMessage(GuiMessenger.guiLogMessage, "msgtype: "+ msg_type + " msglen: " + msg_len + " ts: " + formatter.format(date)  );

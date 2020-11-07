@@ -337,7 +337,8 @@ public class MainActivity extends AppCompatActivity {
         String res = ExecuteShellCommand.executeAsRoot("getprop ro.board.platform;",true);
         if(res == null) return ChipsetType.UNKNOWN;
 
-        if(res.matches("^msm.*")){
+//        if(res.matches("^msm.*")){
+        if(res.matches("^lito*")){
             return ChipsetType.QUALCOMM;
         }else if(res.matches("^mt.*")){
             return ChipsetType.MTK;

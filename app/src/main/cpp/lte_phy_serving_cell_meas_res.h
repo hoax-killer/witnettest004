@@ -103,6 +103,100 @@ const Fmt LtePhySubpktFmt_v1_Scmr_v4 [] = {
         {UINT, "Physical Cell ID", 2}   //cell ID
 };
 
+// ------------------------------------------------------------
+// NR_RRC_OTA_Packet
+const Fmt NrRrcOtaPacketFmt[] = {
+        {UINT, "Pkt Version",        1},    //version
+        {UINT, "Unknown", 			 3},    //Maybe Reserved
+        {UINT, "RRC Release Number", 1},    //RRC release version
+        {UINT, "RRC Version Number", 1},    //RRC version version
+        {UINT, "Radio Bearer ID",    1},    //no change
+        {UINT, "Physical Cell ID",   2},     //Cell ID
+        {UINT, "Freq",   			 4},     //Freq
+        {UINT, "SysFrameNum/SubFrameNum",   4},     //System/subsystem frame number
+        {UINT, "Physical Cell ID",   2},     //Cell ID
+        {UINT, "PDU Number",         2},     //PDU Number
+        {UINT, "SIB Mask In SI",     4},
+        {UINT, "Msg Length",         2}
+};
+
+const ValueName NrRrcOtaPduType_v7[] = {
+//        {0x02, "LTE-RRC_BCCH_DL_SCH"},
+//        {0x04, "LTE-RRC_PCCH"},
+//        {0x05, "LTE-RRC_DL_CCCH"},
+//        {0x06, "LTE-RRC_DL_DCCH"},
+//        {0x07, "LTE-RRC_UL_CCCH"},
+//        {0x08, "LTE-RRC_UL_DCCH"},
+};
+
+const ValueName NrRrcOtaPduType_v8[] = {
+//        {0x02, "LTE-RRC_BCCH_DL_SCH"},
+//        {0x04, "LTE-RRC_PCCH"},
+//        {0x05, "LTE-RRC_DL_CCCH"},
+//        {0x06, "LTE-RRC_DL_DCCH"},
+//        {0x07, "LTE-RRC_UL_CCCH"},
+//        {0x08, "LTE-RRC_UL_DCCH"},
+};
+
+// ------------------------------------------------------------
+
+
+
+
+static int
+_decode_nr_rrc_ota(const char *b, int offset, size_t length,
+                   json &j) {
+    int start = offset;
+//    int pkt_ver = _search_result_int(result, "Pkt Version");
+//
+//    //pkt_ver==8 (Xiaomi)
+//    if (pkt_ver == 8) {
+//
+//        int pdu_number = _search_result_int(result, "PDU Number");
+//        int pdu_length = _search_result_int(result, "Msg Length");
+//
+//        const char *type_name = search_name(NrRrcOtaPduType_v8,
+//                                            ARRAY_SIZE(NrRrcOtaPduType_v8, ValueName),
+//                                            pdu_number);
+//
+//        if (type_name == NULL) {    // not found
+//            printf("(MI)Unknown 5G NR RRC PDU Type: 0x%x\n", pdu_number);
+//            return 0;
+//        } else {
+//            std::string type_str = "raw_msg/";
+//            type_str += type_name;
+//            PyObject *t = Py_BuildValue("(sy#s)",
+//                                        "Msg", b + offset, pdu_length, type_str.c_str());
+//            PyList_Append(result, t);
+//            Py_DECREF(t);
+//            return (offset - start) + pdu_length;
+//        }
+//
+//    } else if (pkt_ver = 7) {
+//        //pkt_ver==8 (Samsung)
+//        int pdu_number = _search_result_int(result, "PDU Number");
+//        int pdu_length = _search_result_int(result, "Msg Length");
+//        const char *type_name = search_name(NrRrcOtaPduType_v7,
+//                                            ARRAY_SIZE(NrRrcOtaPduType_v7, ValueName),
+//                                            pdu_number);
+//
+//        if (type_name == NULL) {    // not found
+//            printf("(MI)Unknown 5G NR RRC PDU Type: 0x%x\n", pdu_number);
+//            return 0;
+//        } else {
+//            std::string type_str = "raw_msg/";
+//            type_str += type_name;
+//            PyObject *t = Py_BuildValue("(sy#s)",
+//                                        "Msg", b + offset, pdu_length, type_str.c_str());
+//            PyList_Append(result, t);
+//            Py_DECREF(t);
+//            return (offset - start) + pdu_length;
+//        }
+//    }
+}
+
+// ----------------------------------------------------------------------------
+
 
 static int
 _decode_lte_phy_subpkt(const char *b, int offset, size_t length,

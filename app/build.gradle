@@ -11,9 +11,9 @@ android {
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
         externalNativeBuild {
             cmake {
-
+                abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'
                 cppFlags "-fexceptions -frtti -std=c++11"
-                arguments "-DANDROID_TOOLCHAIN=gcc",  "-DANDROID_STL=c++_shared"
+                arguments "-DANDROID_STL=c++_shared"
                 cFlags += "-I" + file("src/main/jniLibs/includes").absolutePath
             }
         }
@@ -44,6 +44,7 @@ android {
 
         }
     }
+    ndkVersion '21.3.6528147'
 }
 
 dependencies {

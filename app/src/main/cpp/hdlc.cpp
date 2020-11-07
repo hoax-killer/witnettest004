@@ -117,12 +117,16 @@ unescape (std::string& frame) {
 bool
 get_next_frame (std::string& output_frame, bool& crc_correct) {
 
+    //LOGD("get_next_frame from %i\n", hdlcPktBuffer.size());
+
     size_t delim = hdlcPktBuffer.find('\x7e');
     if (delim == std::string::npos)
         return false;
 
     output_frame = hdlcPktBuffer.substr(0, delim);
     hdlcPktBuffer.erase(0, delim + 1);
+
+    //LOGD("frame taken, size: %i\n", hdlcPktBuffer.size());
 
     const char *s = output_frame.data();
 
